@@ -8,6 +8,8 @@ import subprocess
 import traceback
 import datetime
 from pygame.locals import *
+from tkinter import Tk
+from tkinter.filedialog import askopenfilename
 
 # 资源路径处理函数（支持PyInstaller打包）
 def get_resource_path(relative_path):
@@ -30,19 +32,14 @@ def generate_crash_report(exception, filename="crash_report.txt"):
         f.write(traceback.format_exc())
     print(f"崩溃报告已生成: {filename}")
 
-# 智能字体创建函数，支持自动识别路径下的ttf文件
+# 智能字体创建函数（确保在Pygame初始化后调用）
 def create_font(size):
     """创建支持中文的字体对象"""
     # 强制检查并初始化字体模块（关键修复）
     if not pygame.font.get_init():
         pygame.font.init()
-
-    # 查找当前路径下的ttf文件
-    local_fonts = []
-    for file in os.listdir('.'):
-        if file.endswith('.ttf'):
-            local_fonts.append(file)
-
+    
+    local_fonts = ["simhei.ttf", "msyh.ttf", "simfang.ttf"]
     for font_file in local_fonts:
         try:
             font_path = get_resource_path(font_file)
@@ -109,13 +106,6 @@ DEFAULT_SOUNDS = {
     "tool": "sounds/tool.wav"
 }
 
-# 难度配置
-DIFFICULTIES = {
-    "初级": {"width": 10, "height": 10, "mine_percentage": 0.1},
-    "中级": {"width": 16, "height": 16, "mine_percentage": 0.15},
-    "高级": {"width": 30, "height": 16, "mine_percentage": 0.2}
-}
-
 class SoundManager:
     def __init__(self):
         self.sounds = {}
@@ -123,7 +113,7 @@ class SoundManager:
         self.sound_paths = {}
         self.missing_sounds = []
         self.error_occurred = False
-
+        
     def load_sounds(self, sound_dir="sounds"):
         """加载音效文件，缺失时记录但不影响游戏"""
         self.sound_paths = DEFAULT_SOUNDS.copy()
@@ -139,24 +129,24 @@ class SoundManager:
             except Exception as e:
                 self.missing_sounds.append((sound_name, path))
                 print(f"[ERROR] 加载音效 {sound_name} 失败: {e}")
-
+        
         # 如果没有音效可用，自动禁用音效系统
         if not self.sounds:
             self.enabled = False
             self.error_occurred = True
             print("[INFO] 未找到任何音效文件，已自动禁用音效系统")
-
+    
     def play(self, sound_name):
         if self.enabled and sound_name in self.sounds:
             try:
                 self.sounds[sound_name].play()
             except:
                 pass
-
+    
     def get_missing_sounds(self):
         """返回缺失的音效列表"""
         return self.missing_sounds
-
+    
     def has_errors(self):
         """检查是否有加载错误"""
         return self.error_occurred
@@ -170,86 +160,88 @@ class Cell:
         self.is_hinted = False
 
 class Minesweeper:
-    def __init__(self):
+    def __init__(self, width=30, height=20, mine_percentage=0.15, cell_size=DEFAULT_CELL_SIZE, resizable=True):
         try:
-            # 初始化Pygame核心模块
+            # 初始化Pygame核心模块（确保在创建字体前调用）
             if not pygame.get_init():
-                pygame.init()
+                pygame.init()  # 初始化Pygame核心
             if not pygame.font.get_init():
-                pygame.font.init()
-
-            # 初始化字体
-            self.FONT = create_font(18)
-            self.TITLE_FONT = create_font(24)
-            self.SCORE_FONT = create_font(16)
-
-            # 初始化默认参数（关键修复：提前定义所有必要属性）
-            self.mine_percentage = DIFFICULTIES["中级"]["mine_percentage"]  # 预设默认值
-            self.width = DIFFICULTIES["中级"]["width"]
-            self.height = DIFFICULTIES["中级"]["height"]
-            self.cell_size = DEFAULT_CELL_SIZE
-            self.show_time = True
-            self.tool_size = 3
-
-            # 尝试加载存档
-            if os.path.exists(SAVE_FILE):
-                self.load_game()
-            # 若加载存档失败，已通过上述默认值初始化
-
-            # 加载配置（此时self.mine_percentage已存在，可作为默认值）
+                pygame.font.init()  # 单独初始化字体模块（关键修复）
+            
+            # 尝试加载配置
             config = self.load_config()
             if config:
-                self.width = config.get('width', self.width)
-                self.height = config.get('height', self.height)
-                self.mine_percentage = config.get('mine_percentage', self.mine_percentage)  # 此处不再报错
-                self.cell_size = config.get('cell_size', self.cell_size)
-                self.show_time = config.get('show_time', self.show_time)
+                width = config.get('width', width)
+                height = config.get('height', height)
+                mine_percentage = config.get('mine_percentage', mine_percentage)
+                cell_size = config.get('cell_size', cell_size)
+                show_time = config.get('show_time', True)
                 sound_enabled = config.get('sound_enabled', True)
-                self.tool_size = config.get('tool_size', self.tool_size)
+                tool_size = config.get('tool_size', 3)
+            
+            self.original_width = width
+            self.original_height = height
+            self.original_mine_percentage = mine_percentage
+            self.original_cell_size = cell_size
+            self.original_show_time = show_time
+            self.original_sound_enabled = sound_enabled
+            self.original_tool_size = tool_size
 
-            self.total_mines = int(self.width * self.height * self.mine_percentage)
-            self.score = 0
-            self.total_score = self.load_score()
+            self.width = min(max(10, width), 100)
+            self.height = min(max(10, height), 60)
+            self.cell_size = cell_size
+            self.mine_percentage = mine_percentage
+            self.resizable = resizable
+            self.total_mines = int(self.width * self.height * mine_percentage)
+            self.score = 0  # 单局积分
+            self.total_score = self.load_score()  # 总积分
             self.game_over = False
             self.win = False
             self.first_click = True
             self.tool_active = False
-            self.tool_cost = 1000
+            self.tool_cost = 1000  # 道具成本固定为1000分
+            self.show_time = show_time if 'show_time' in locals() else True
             self.start_time = time.time()
             self.game_time = 0
-
+            self.tool_size = tool_size if 'tool_size' in locals() else 3
+            
+            # 初始化字体（此时Pygame已初始化，避免报错）
+            self.FONT = create_font(18)
+            self.TITLE_FONT = create_font(24)
+            self.SCORE_FONT = create_font(16)
+            
             # 初始化声音管理器
             self.sound_manager = SoundManager()
             self.sound_manager.enabled = sound_enabled if 'sound_enabled' in locals() else True
-
+            
             self.calculate_window_size()
-            flags = pygame.RESIZABLE
+            flags = pygame.RESIZABLE if self.resizable else 0
             self.screen = pygame.display.set_mode((self.window_width, self.window_height), flags)
             pygame.display.set_caption("扫雷游戏")
-
+            
             self.board = [[Cell() for _ in range(self.width)] for _ in range(self.height)]
             self.buttons = []
             self.create_buttons()
-
+            
             # 加载旗子图片
             self.flag_image = self.load_flag_image()
-
+            
             # 加载背景图片
             self.background_image = self.load_background_image()
-
+            
             # 加载声音
             self.sound_manager.load_sounds()
-
+            
             # 显示缺失资源警告
             self.display_resource_warnings()
-
+            
             self.place_mines_after_first_click = True
             self.last_click_time = 0
             self.last_click_pos = None
         except Exception as e:
             generate_crash_report(e)
             raise
-
+    
     def calculate_window_size(self):
         """计算窗口大小，动态调整标题栏高度"""
         effective_cell_size = self.cell_size
@@ -258,13 +250,15 @@ class Minesweeper:
         score_height = self.FONT.size(f"单局积分: 0  总积分: 0")[1]
         time_height = self.FONT.size("时间: 00:00")[1]
         button_height = BUTTON_HEIGHT + 10  # 按钮高度+间距
-
-        self.header_height = title_height + score_height + time_height + button_height + 20
-
-        self.window_width = self.width * effective_cell_size + 20
+        
+        self.header_height = title_height + score_height + time_height + button_height + 20  # 增加安全间距
+        global HEADER_HEIGHT
+        HEADER_HEIGHT = self.header_height
+        
+        self.window_width = self.width * effective_cell_size + 20  # 预留边界
         self.window_height = self.height * effective_cell_size + self.header_height + 20
         self.effective_cell_size = effective_cell_size
-
+    
     def create_buttons(self):
         """创建界面按钮，确保在标题栏内"""
         spacing = 10
@@ -279,12 +273,12 @@ class Minesweeper:
             ("customize", pygame.Rect(start_x + 5 * (BUTTON_WIDTH + spacing), button_y, BUTTON_WIDTH, BUTTON_HEIGHT)),
             ("open_resources", pygame.Rect(start_x + 6 * (BUTTON_WIDTH + spacing), button_y, BUTTON_WIDTH, BUTTON_HEIGHT))
         ]
-
+    
     def load_flag_image(self, size=None):
         """加载旗子图标"""
         if size is None:
             size = (int(self.cell_size * 0.8), int(self.cell_size * 0.8))
-
+        
         try:
             flag_path = get_resource_path(FLAG_IMAGE_PATH)
             if not os.path.exists(flag_path):
@@ -293,7 +287,7 @@ class Minesweeper:
             return pygame.transform.scale(flag_img, size)
         except:
             return None
-
+    
     def load_background_image(self):
         """加载背景图片并根据窗口大小自动填充"""
         try:
@@ -304,7 +298,7 @@ class Minesweeper:
             return None
         except:
             return None
-
+    
     def load_score(self):
         """加载总积分"""
         if os.path.exists(SCORE_FILE):
@@ -314,7 +308,7 @@ class Minesweeper:
             except:
                 return 0
         return 0
-
+    
     def save_score(self):
         """保存总积分"""
         try:
@@ -322,7 +316,7 @@ class Minesweeper:
                 pickle.dump(self.total_score, f)
         except:
             pass
-
+    
     def save_game(self):
         """保存游戏状态"""
         try:
@@ -346,9 +340,11 @@ class Minesweeper:
         except Exception as e:
             print(f"保存游戏失败: {e}")
             return False
-
+    
     def load_game(self):
         """加载游戏存档"""
+        if not os.path.exists(SAVE_FILE):
+            return False
         try:
             with open(SAVE_FILE, 'rb') as f:
                 game_state = pickle.load(f)
@@ -366,7 +362,7 @@ class Minesweeper:
             self.tool_size = game_state.get('tool_size', 3)
             self.start_time = time.time() - self.game_time
             self.calculate_window_size()
-            flags = pygame.RESIZABLE
+            flags = pygame.RESIZABLE if self.resizable else 0
             self.screen = pygame.display.set_mode((self.window_width, self.window_height), flags)
             self.create_buttons()
             self.background_image = self.load_background_image()
@@ -374,23 +370,8 @@ class Minesweeper:
             return True
         except Exception as e:
             print(f"加载游戏失败: {e}")
-            # 加载失败时使用中级难度
-            config = DIFFICULTIES["中级"]
-            self.width = config["width"]
-            self.height = config["height"]
-            self.mine_percentage = config["mine_percentage"]
-            self.cell_size = DEFAULT_CELL_SIZE
-            self.board = [[Cell() for _ in range(self.width)] for _ in range(self.height)]
-            self.score = 0
-            self.game_over = False
-            self.win = False
-            self.first_click = True
-            self.start_time = time.time()
-            self.calculate_window_size()
-            self.screen = pygame.display.set_mode((self.window_width, self.window_height), pygame.RESIZABLE)
-            self.create_buttons()
             return False
-
+    
     def load_config(self):
         """加载游戏配置"""
         if os.path.exists(CONFIG_FILE):
@@ -400,7 +381,7 @@ class Minesweeper:
             except Exception as e:
                 print(f"加载配置失败: {e}")
         return None
-
+    
     def save_config(self):
         """保存游戏配置"""
         try:
@@ -419,9 +400,17 @@ class Minesweeper:
         except Exception as e:
             print(f"保存配置失败: {e}")
             return False
-
+    
     def reset_game(self):
         """重置游戏状态"""
+        self.width = self.original_width
+        self.height = self.original_height
+        self.mine_percentage = self.original_mine_percentage
+        self.cell_size = self.original_cell_size
+        self.show_time = self.original_show_time
+        self.sound_manager.enabled = self.original_sound_enabled
+        self.tool_size = self.original_tool_size
+
         self.board = [[Cell() for _ in range(self.width)] for _ in range(self.height)]
         self.score = 0
         self.game_over = False
@@ -432,6 +421,13 @@ class Minesweeper:
         self.start_time = time.time()
         self.game_time = 0
 
+        self.calculate_window_size()
+        flags = pygame.RESIZABLE if self.resizable else 0
+        self.screen = pygame.display.set_mode((self.window_width, self.window_height), flags)
+        self.create_buttons()
+        self.background_image = self.load_background_image()
+        self.flag_image = self.load_flag_image()
+    
     def place_mines(self, first_x, first_y):
         """放置地雷（避开首次点击区域）"""
         self.total_mines = int(self.width * self.height * self.mine_percentage)
@@ -452,7 +448,7 @@ class Minesweeper:
                         ny, nx = y + dy, x + dx
                         if 0 <= ny < self.height and 0 <= nx < self.width:
                             self.board[ny][nx].neighbor_mines += 1
-
+    
     def reveal(self, x, y, fast_reveal=False):
         """揭示单元格"""
         if not (0 <= y < self.height and 0 <= x < self.width):
@@ -481,7 +477,7 @@ class Minesweeper:
                     if dx == 0 and dy == 0:
                         continue
                     self.reveal(x + dx, y + dy, fast_reveal)
-
+    
     def reveal_around(self, x, y):
         """根据标记数量揭示周围单元格"""
         cell = self.board[y][x]
@@ -501,7 +497,7 @@ class Minesweeper:
                     if 0 <= ny < self.height and 0 <= nx < self.width:
                         if not self.board[ny][nx].is_flagged:
                             self.reveal(nx, ny, fast_reveal=True)
-
+    
     def toggle_flag(self, x, y):
         """切换旗帜标记"""
         if not (0 <= y < self.height and 0 <= x < self.width):
@@ -511,7 +507,7 @@ class Minesweeper:
             cell.is_flagged = not cell.is_flagged
             if not self.sound_manager.has_errors():
                 self.sound_manager.play("flag")
-
+    
     def use_tool(self, x, y):
         """使用扫雷道具（优先扣除单局积分，不足时扣除总积分）"""
         cost = self.tool_cost
@@ -533,7 +529,7 @@ class Minesweeper:
             else:
                 self.show_message(f"积分不足! 需要{cost}分，当前单局: {self.score}，总积分: {self.total_score}", 1500)
                 return False
-
+    
     def _apply_tool(self, x, y):
         """应用道具效果"""
         start_x = max(0, x - self.tool_size // 2)
@@ -544,7 +540,7 @@ class Minesweeper:
             for x_idx in range(start_x, end_x):
                 if self.board[y_idx][x_idx].is_mine:
                     self.board[y_idx][x_idx].is_flagged = True
-
+    
     def check_win(self):
         """检查是否胜利"""
         for y in range(self.height):
@@ -553,7 +549,7 @@ class Minesweeper:
                 if not cell.is_mine and not cell.is_revealed:
                     return False
         return True
-
+    
     def show_message(self, message, duration=1500):
         """显示提示信息"""
         try:
@@ -572,7 +568,7 @@ class Minesweeper:
             generate_crash_report(e)
             print(f"显示消息失败: {message}")
             pygame.time.delay(duration)
-
+    
     def display_resource_warnings(self):
         """显示资源缺失警告"""
         try:
@@ -586,7 +582,7 @@ class Minesweeper:
                     warnings.append(f" - {name}: {path}")
             if not warnings:
                 return
-
+                
             panel_height = 100 + len(warnings) * 30
             panel = pygame.Surface((self.window_width, panel_height), pygame.SRCALPHA)
             panel.fill(WARNING_COLOR)
@@ -599,10 +595,10 @@ class Minesweeper:
                 y_offset += 30
             hint = self.FONT.render("点击继续游戏...", True, (255, 255, 255, 255))
             panel.blit(hint, (self.window_width//2 - hint.get_width()//2, y_offset + 10))
-
+            
             self.screen.blit(panel, (0, self.window_height//2 - panel_height//2))
             pygame.display.flip()
-
+            
             waiting = True
             while waiting:
                 for event in pygame.event.get():
@@ -621,21 +617,21 @@ class Minesweeper:
                 pygame.time.delay(3000)
             except:
                 print(f"严重错误: 无法显示资源警告 - {e}")
-
+    
     def draw_game_elements(self):
         """绘制游戏界面元素"""
         effective_cell_size = self.effective_cell_size
-
+        
         # 绘制标题
         title = self.TITLE_FONT.render("扫雷游戏", True, TEXT_COLOR)
         title_y = 10
         self.screen.blit(title, (self.window_width//2 - title.get_width()//2, title_y))
-
+        
         # 绘制积分显示
         score_text = self.FONT.render(f"单局积分: {self.score}  总积分: {self.total_score}", True, SCORE_COLOR)
         score_y = title_y + title.get_height() + 10
         self.screen.blit(score_text, (20, score_y))
-
+        
         # 绘制时间显示
         if self.show_time and not self.game_over and not self.win:
             elapsed = int(time.time() - self.start_time)
@@ -644,7 +640,7 @@ class Minesweeper:
             time_text = self.FONT.render(f"时间: {minutes:02d}:{seconds:02d}", True, TIME_COLOR)
             time_y = score_y + score_text.get_height() + 10
             self.screen.blit(time_text, (self.window_width - time_text.get_width() - 20, time_y))
-
+        
         # 绘制按钮
         for btn_type, rect in self.buttons:
             if btn_type == "tool":
@@ -669,7 +665,7 @@ class Minesweeper:
             elif btn_type == "config":
                 text = "游戏设置"
                 color = (180, 100, 200, 200)
-                hover_color = (200, 120, 220, 220)
+                hover_color = (200, 120, 220, 200)
             elif btn_type == "customize":
                 text = "自定义资源"
                 color = (100, 200, 200, 200)
@@ -677,7 +673,7 @@ class Minesweeper:
             elif btn_type == "open_resources":
                 text = "打开资源目录"
                 color = (100, 180, 180, 200)
-                hover_color = (120, 200, 200, 200)
+                hover_color = (120, 200, 200, 220)
             button_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
             button_color = hover_color if rect.collidepoint(pygame.mouse.get_pos()) else color
             button_surface.fill(button_color)
@@ -685,7 +681,7 @@ class Minesweeper:
             pygame.draw.rect(self.screen, (50, 50, 50, 255), rect, 2, border_radius=5)
             text_surf = self.FONT.render(text, True, TEXT_COLOR)
             self.screen.blit(text_surf, (rect.centerx - text_surf.get_width()//2, rect.centery - text_surf.get_height()//2))
-
+        
         # 绘制棋盘
         for y in range(self.height):
             for x in range(self.width):
@@ -696,7 +692,7 @@ class Minesweeper:
                 draw_y = y * effective_cell_size + self.header_height
                 rect = pygame.Rect(draw_x, draw_y, effective_cell_size, effective_cell_size)
                 cell_surface = pygame.Surface((effective_cell_size, effective_cell_size), pygame.SRCALPHA)
-
+                
                 if cell.is_revealed:
                     cell_surface.fill(REVEALED)
                     if cell.is_mine:
@@ -716,7 +712,7 @@ class Minesweeper:
                             pygame.draw.line(cell_surface, (255, 255, 0), (effective_cell_size-5, 5), (effective_cell_size//2, effective_cell_size//2), 2)
                 pygame.draw.rect(cell_surface, GRID_LINE, (0, 0, effective_cell_size, effective_cell_size), 1)
                 self.screen.blit(cell_surface, rect.topleft)
-
+        
         if self.game_over or self.win:
             overlay = pygame.Surface((self.window_width, self.height * effective_cell_size), pygame.SRCALPHA)
             if self.game_over:
@@ -733,7 +729,17 @@ class Minesweeper:
                 self.save_score()
                 score_text = self.FONT.render(f"单局得分: {self.score}  总积分: {self.total_score}", True, (255, 255, 255, 255))
                 self.screen.blit(score_text, (self.window_width//2 - score_text.get_width()//2, self.header_height + self.height * effective_cell_size // 2 + 30))
-
+        
+        # 绘制侧边栏
+        sidebar_width = 20
+        sidebar_height = self.window_height - self.header_height
+        sidebar_x = self.window_width - sidebar_width
+        sidebar_y = self.header_height
+        sidebar_rect = pygame.Rect(sidebar_x, sidebar_y, sidebar_width, sidebar_height)
+        sidebar_surface = pygame.Surface((sidebar_width, sidebar_height), pygame.SRCALPHA)
+        sidebar_surface.fill(SIDEBAR_COLOR)
+        self.screen.blit(sidebar_surface, sidebar_rect.topleft)
+    
     def draw(self):
         """渲染游戏界面"""
         try:
@@ -752,315 +758,127 @@ class Minesweeper:
                 pygame.display.flip()
             except:
                 print(f"严重错误: 无法渲染屏幕 - {e}")
-
+    
     def config_screen(self):
-        """游戏配置界面（简化版）"""
-        config_active = True
-        width_input = str(self.width)
-        height_input = str(self.height)
-        mine_input = str(int(self.mine_percentage * 100))
-        show_time = "1" if self.show_time else "0"
-        sound_enabled = "1" if self.sound_manager.enabled and not self.sound_manager.has_errors() else "0"
-        cell_size_input = str(self.cell_size)
-        tool_size_input = str(self.tool_size)
-
-        input_boxes = [
-            {"rect": pygame.Rect(200, 150, 100, 30), "text": width_input, "label": "宽度 (10-100):", "type": "width"},
-            {"rect": pygame.Rect(200, 200, 100, 30), "text": height_input, "label": "高度 (10-60):", "type": "height"},
-            {"rect": pygame.Rect(200, 250, 100, 30), "text": mine_input, "label": "地雷比例 (%):", "type": "mines"},
-            {"rect": pygame.Rect(200, 300, 100, 30), "text": show_time, "label": "显示时间 (0/1):", "type": "time"},
-            {"rect": pygame.Rect(200, 350, 100, 30), "text": sound_enabled, "label": "音效开关 (0/1):", "type": "sound"},
-            {"rect": pygame.Rect(200, 400, 100, 30), "text": cell_size_input, "label": "单元格大小 (15-40):", "type": "cell_size"},
-            {"rect": pygame.Rect(200, 450, 100, 30), "text": tool_size_input, "label": "道具大小 (1-10):", "type": "tool_size"}
-        ]
-
-        save_button = pygame.Rect(150, 500, 100, 40)
-        cancel_button = pygame.Rect(270, 500, 100, 40)
-        active_input = None
-        clock = pygame.time.Clock()
-
-        # 难度按钮
-        difficulty_buttons = []
-        start_x = 500
-        start_y = 150
-        spacing = 10
-        for i, difficulty in enumerate(DIFFICULTIES.keys()):
-            rect = pygame.Rect(start_x, start_y + i * (BUTTON_HEIGHT + spacing), BUTTON_WIDTH, BUTTON_HEIGHT)
-            difficulty_buttons.append((difficulty, rect))
-
-        while config_active:
-            for event in pygame.event.get():
-                if event.type == QUIT:
-                    pygame.quit()
-                    sys.exit()
-                elif event.type == MOUSEBUTTONDOWN:
-                    for box in input_boxes:
-                        if box["rect"].collidepoint(event.pos):
-                            active_input = box
-                        else:
-                            if active_input == box:
-                                active_input = None
-                    if save_button.collidepoint(event.pos):
-                        self.save_config_from_input(input_boxes)
-                        config_active = False
-                    elif cancel_button.collidepoint(event.pos):
-                        config_active = False
-                    for difficulty, rect in difficulty_buttons:
-                        if rect.collidepoint(event.pos):
-                            self.apply_difficulty(difficulty, input_boxes)
-                elif event.type == KEYDOWN:
-                    if event.key == K_RETURN:
-                        self.save_config_from_input(input_boxes)
-                        config_active = False
-                    elif event.key == K_ESCAPE:
-                        config_active = False
-                    elif active_input:
-                        if event.key == K_BACKSPACE:
-                            active_input["text"] = active_input["text"][:-1]
-                        else:
-                            if (event.unicode.isdigit() and 
-                                ((active_input["type"] in ["width", "height"] and len(active_input["text"]) < 2) or
-                                 (active_input["type"] == "mines" and len(active_input["text"]) < 2) or
-                                 (active_input["type"] == "cell_size" and len(active_input["text"]) < 2) or
-                                 (active_input["type"] == "tool_size" and len(active_input["text"]) < 2) or
-                                 (active_input["type"] in ["time", "sound"] and len(active_input["text"]) < 1))):
-                                active_input["text"] += event.unicode
-
-            # 绘制配置界面
-            self.screen.fill((240, 240, 240))
-            title = self.TITLE_FONT.render("游戏设置", True, TEXT_COLOR)
-            self.screen.blit(title, (self.window_width//2 - title.get_width()//2, 50))
-
-            # 绘制输入框和标签
-            for box in input_boxes:
-                label = self.FONT.render(box["label"], True, TEXT_COLOR)
-                self.screen.blit(label, (50, box["rect"].y + 5))
-                pygame.draw.rect(self.screen, INPUT_BG, box["rect"])
-                pygame.draw.rect(self.screen, (0, 0, 0), box["rect"], 2)
-                txt_surface = self.FONT.render(box["text"], True, TEXT_COLOR)
-                self.screen.blit(txt_surface, (box["rect"].x + 5, box["rect"].y + 5))
-                if active_input == box:
-                    pygame.draw.rect(self.screen, (255, 0, 0), box["rect"], 2)
-
-            # 绘制难度按钮
-            difficulty_title = self.FONT.render("预设难度:", True, TEXT_COLOR)
-            self.screen.blit(difficulty_title, (start_x, start_y - 30))
-            for difficulty, rect in difficulty_buttons:
-                color = BUTTON_HOVER if rect.collidepoint(pygame.mouse.get_pos()) else BUTTON_COLOR
-                pygame.draw.rect(self.screen, color, rect)
-                pygame.draw.rect(self.screen, (0, 0, 0), rect, 2)
-                text = self.FONT.render(difficulty, True, TEXT_COLOR)
-                self.screen.blit(text, (rect.centerx - text.get_width()//2, rect.centery - text.get_height()//2))
-
-            # 绘制保存和取消按钮
-            for btn in [(save_button, "保存"), (cancel_button, "取消")]:
-                color = BUTTON_HOVER if btn[0].collidepoint(pygame.mouse.get_pos()) else BUTTON_COLOR
-                pygame.draw.rect(self.screen, color, btn[0])
-                pygame.draw.rect(self.screen, (0, 0, 0), btn[0], 2)
-                text = self.FONT.render(btn[1], True, TEXT_COLOR)
-                self.screen.blit(text, (btn[0].centerx - text.get_width()//2, btn[0].centery - text.get_height()//2))
-
-            pygame.display.flip()
-            clock.tick(30)
-
-    def save_config_from_input(self, input_boxes):
-        """从输入框保存配置"""
+        """游戏配置界面（支持重置配置）"""
         try:
-            width = int(input_boxes[0]["text"])
-            height = int(input_boxes[1]["text"])
-            mine_percentage = int(input_boxes[2]["text"]) / 100
-            show_time = input_boxes[3]["text"] == "1"
-            sound_enabled = input_boxes[4]["text"] == "1"
-            cell_size = int(input_boxes[5]["text"])
-            tool_size = int(input_boxes[6]["text"])
-
-            # 验证输入
-            width = max(10, min(width, 100))
-            height = max(10, min(height, 60))
-            mine_percentage = max(0.05, min(mine_percentage, 0.3))
-            cell_size = max(MIN_CELL_SIZE, min(cell_size, MAX_CELL_SIZE))
-            tool_size = max(1, min(tool_size, 10))
-
-            # 应用配置
-            self.width = width
-            self.height = height
-            self.mine_percentage = mine_percentage
-            self.show_time = show_time
-            self.sound_manager.enabled = sound_enabled
-            self.cell_size = cell_size
-            self.tool_size = tool_size
-            self.total_mines = int(self.width * self.height * self.mine_percentage)
-
-            # 保存配置
-            self.save_config()
-
-            # 重置游戏以应用新配置
-            self.reset_game()
-            self.calculate_window_size()
-            self.screen = pygame.display.set_mode((self.window_width, self.window_height), pygame.RESIZABLE)
-            self.create_buttons()
-            self.background_image = self.load_background_image()
-            self.flag_image = self.load_flag_image()
-
-            self.show_message("配置已保存!")
-        except Exception as e:
-            print(f"保存配置失败: {e}")
-            self.show_message("配置保存失败! 请检查输入")
-
-    def apply_difficulty(self, difficulty, input_boxes):
-        """应用预设难度"""
-        config = DIFFICULTIES[difficulty]
-        input_boxes[0]["text"] = str(config["width"])
-        input_boxes[1]["text"] = str(config["height"])
-        input_boxes[2]["text"] = str(int(config["mine_percentage"] * 100))
-        # 保持其他设置不变
-
-    def customize_resources(self):
-        """自定义资源界面"""
-        # 简化版资源自定义界面
-        try:
-            active = True
+            config_active = True
+            original_width = self.width
+            original_height = self.height
+            original_mine = self.mine_percentage
+            original_show_time = self.show_time
+            original_sound = self.sound_manager.enabled
+            original_cell_size = self.cell_size
+            original_tool_size = self.tool_size
+            
+            width_input = str(self.width)
+            height_input = str(self.height)
+            mine_input = str(int(self.mine_percentage * 100))
+            show_time = "1" if self.show_time else "0"
+            sound_enabled = "1" if self.sound_manager.enabled and not self.sound_manager.has_errors() else "0"
+            cell_size_input = str(self.cell_size)
+            tool_size_input = str(self.tool_size)
+            
+            input_boxes = [
+                {"rect": pygame.Rect(200, 150, 100, 30), "text": width_input, "label": "宽度 (10-100):", "type": "width"},
+                {"rect": pygame.Rect(200, 200, 100, 30), "text": height_input, "label": "高度 (10-60):", "type": "height"},
+                {"rect": pygame.Rect(200, 250, 100, 30), "text": mine_input, "label": "地雷比例 (%):", "type": "mines"},
+                {"rect": pygame.Rect(200, 300, 100, 30), "text": show_time, "label": "显示时间 (0/1):", "type": "time"},
+                {"rect": pygame.Rect(200, 350, 100, 30), "text": sound_enabled, "label": "音效开关 (0/1):", "type": "sound"},
+                {"rect": pygame.Rect(200, 400, 100, 30), "text": cell_size_input, "label": "单元格大小 (15-40):", "type": "cell_size"},
+                {"rect": pygame.Rect(200, 450, 100, 30), "text": tool_size_input, "label": "道具大小 (3-7):", "type": "tool_size"}
+            ]
+            
+            save_button = pygame.Rect(150, 500, 100, 40)
+            cancel_button = pygame.Rect(270, 500, 100, 40)
+            reset_button = pygame.Rect(390, 500, 100, 40)
+            active_input = None
             clock = pygame.time.Clock()
-            current_dir = os.getcwd()
-
-            while active:
-                for event in pygame.event.get():
-                    if event.type == QUIT:
-                        pygame.quit()
-                        sys.exit()
-                    elif event.type == MOUSEBUTTONDOWN:
-                        active = False
-
-                self.screen.fill((240, 240, 240))
-                title = self.TITLE_FONT.render("自定义资源", True, TEXT_COLOR)
-                self.screen.blit(title, (self.window_width//2 - title.get_width()//2, 50))
-
-                instructions = [
-                    "1. 将自定义图片和音效文件放入游戏目录下的对应文件夹",
-                    "2. 支持的文件格式:",
-                    "   - 图片: PNG, JPG, BMP",
-                    "   - 音效: WAV, MP3",
-                    "3. 可用的自定义文件:",
-                    f"   - 旗子图片: {FLAG_IMAGE_PATH}",
-                    f"   - 背景图片: {BACKGROUND_IMAGE_PATH}",
-                    "   - 音效文件:",
-                    "     - 点击: sounds/click.wav",
-                    "     - 揭示: sounds/reveal.wav",
-                    "     - 标记: sounds/flag.wav",
-                    "     - 胜利: sounds/win.wav",
-                    "     - 失败: sounds/lose.wav",
-                    "     - 道具: sounds/tool.wav",
-                    "4. 修改后重启游戏生效",
-                    "5. 点击任意位置返回"
-                ]
-
-                y_offset = 120
-                for line in instructions:
-                    text = self.FONT.render(line, True, TEXT_COLOR)
-                    self.screen.blit(text, (50, y_offset))
-                    y_offset += 30
-
-                pygame.display.flip()
-                clock.tick(30)
-        except Exception as e:
-            generate_crash_report(e)
-            self.show_message(f"自定义资源界面错误: {str(e)}")
-
-    def open_resources_folder(self):
-        """打开资源文件夹"""
-        try:
-            current_dir = os.getcwd()
-            # 打开当前目录
-            if os.name == 'nt':  # Windows
-                os.startfile(current_dir)
-            elif os.name == 'posix':  # macOS/Linux
-                subprocess.Popen(['open', current_dir])
-            else:
-                self.show_message("无法打开资源目录，手动打开: " + current_dir)
-        except Exception as e:
-            self.show_message(f"打开资源目录失败: {str(e)}")
+            
+            while config_active:
+                config_surface = pygame.Surface((self.window_width, self.window_height), pygame.SRCALPHA)
+                config_surface.fill(CONFIG_BG)
+                
+                title = self.TITLE_FONT.render("游戏配置", True, (50, 50, 120, 255))
+                config_surface.blit(title, (self.window_width//2 - title.get_width()//2, 50))
+                
+                for box in input_boxes:
+                    input_surface = pygame.Surface((box["rect"].width, box["rect"].height), pygame.SRCALPHA)
+                    color = (200, 220, 255, 255) if active_input == box else INPUT_BG
+                    input_surface.fill(color)
+                    pygame.draw.rect(input_surface, (0, 0, 0, 255), (0, 0, box["rect"].width, box["rect"].height), 2, border_radius=5)
 
     def run(self):
-        """游戏主循环"""
-        clock = pygame.time.Clock()
         running = True
-
+        last_click_time = 0
+        last_click_pos = None
+        DOUBLE_CLICK_TIME = 0.3  # 双击时间间隔阈值
         while running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
                 elif event.type == pygame.MOUSEBUTTONDOWN:
                     x, y = event.pos
-                    # 检查按钮点击
+                    current_time = time.time()
+                    if (current_time - last_click_time < DOUBLE_CLICK_TIME and
+                            last_click_pos is not None and
+                            abs(x - last_click_pos[0]) < 5 and
+                            abs(y - last_click_pos[1]) < 5):
+                        # 处理双击事件
+                        cell_x = (x // self.effective_cell_size)
+                        cell_y = ((y - self.header_height) // self.effective_cell_size)
+                        self.reveal_around(cell_x, cell_y)
+                    last_click_time = current_time
+                    last_click_pos = (x, y)
                     for btn_type, rect in self.buttons:
-                        if rect.collidepoint((x, y)):
-                            if btn_type == "reset":
-                                self.reset_game()
-                            elif btn_type == "save":
+                        if rect.collidepoint(x, y):
+                            if btn_type == "save":
                                 if self.save_game():
-                                    self.show_message("游戏已保存!")
+                                    print("游戏保存成功")
                                 else:
-                                    self.show_message("保存失败!")
+                                    print("游戏保存失败")
+                            elif btn_type == "reset":
+                                self.reset_game()
                             elif btn_type == "load":
                                 if self.load_game():
-                                    self.show_message("游戏已加载!")
+                                    print("游戏加载成功")
                                 else:
-                                    self.show_message("加载失败!")
+                                    print("游戏加载失败")
                             elif btn_type == "config":
                                 self.config_screen()
                             elif btn_type == "customize":
-                                self.customize_resources()
+                                pass  # 自定义资源功能待实现
                             elif btn_type == "open_resources":
-                                self.open_resources_folder()
+                                pass  # 打开资源目录功能待实现
                             elif btn_type == "tool":
-                                self.tool_active = not self.tool_active
-                                if self.tool_active:
-                                    self.show_message("道具模式已激活! 点击棋盘使用道具")
-                                else:
-                                    self.show_message("道具模式已关闭")
-                            continue
+                                pass  # 使用道具功能待实现
+                    if y > self.header_height:
+                        cell_x = (x // self.effective_cell_size)
+                        cell_y = ((y - self.header_height) // self.effective_cell_size)
+                        if event.button == 1:
+                            self.reveal(cell_x, cell_y)
+                        elif event.button == 3:
+                            self.toggle_flag(cell_x, cell_y)
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        if self.save_config():
+                            print("配置保存成功")
+                        else:
+                            print("配置保存失败")
+                        running = False
 
-                    # 检查棋盘点击
-                    if y >= self.header_height:
-                        cell_y = (y - self.header_height) // self.effective_cell_size
-                        cell_x = x // self.effective_cell_size
-                        if 0 <= cell_y < self.height and 0 <= cell_x < self.width:
-                            if event.button == 1:  # 左键
-                                if self.tool_active:
-                                    if self.use_tool(cell_x, cell_y):
-                                        self.tool_active = False
-                                        # 检查是否胜利
-                                        if self.check_win():
-                                            self.win = True
-                                            if not self.sound_manager.has_errors():
-                                                self.sound_manager.play("win")
-                                else:
-                                    self.reveal(cell_x, cell_y)
-                                    # 检查是否胜利
-                                    if self.check_win():
-                                        self.win = True
-                                        if not self.sound_manager.has_errors():
-                                            self.sound_manager.play("win")
-                            elif event.button == 3:  # 右键
-                                self.toggle_flag(cell_x, cell_y)
-                            elif event.button == 2:  # 中键
-                                self.reveal_around(cell_x, cell_y)
-                                # 检查是否胜利
-                                if self.check_win():
-                                    self.win = True
-                                    if not self.sound_manager.has_errors():
-                                        self.sound_manager.play("win")
+            if not self.game_over and not self.win:
+                self.game_time = int(time.time() - self.start_time)
+                if self.check_win():
+                    self.win = True
+                    if not self.sound_manager.has_errors():
+                        self.sound_manager.play("win")
 
-            # 更新游戏时间
-            if not self.game_over and not self.win and not self.first_click:
-                self.game_time = time.time() - self.start_time
-
-            # 绘制游戏
             self.draw()
-            clock.tick(30)
 
         pygame.quit()
 
+
 if __name__ == "__main__":
     game = Minesweeper()
-    game.run()    
+    game.run()
