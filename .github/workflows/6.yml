@@ -1,0 +1,29 @@
+name: Build Minesweeper to EXE
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.8'
+      - name: Install dependencies
+        run: |
+          pip install pyinstaller==5.13.2
+          pip install pygame
+      - name: Build EXE
+        shell: bash  # 指定使用Bash而非PowerShell
+        run: |
+          pyinstaller --onefile --windowed --name "扫雷" \
+            --add-data "images/*;images/" \
+            --add-data "sounds/*;sounds/" \
+            扫雷.py
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: "扫雷游戏"
+          path: dist/
