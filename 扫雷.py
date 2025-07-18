@@ -807,77 +807,155 @@ class Minesweeper:
                     color = (200, 220, 255, 255) if active_input == box else INPUT_BG
                     input_surface.fill(color)
                     pygame.draw.rect(input_surface, (0, 0, 0, 255), (0, 0, box["rect"].width, box["rect"].height), 2, border_radius=5)
+                    label = self.FONT.render(box["label"], True, (50, 50, 100, 255))
+                    config_surface.blit(label, (box["rect"].x - label.get_width() - 20, box["rect"].y + 5))
+                    text_surf = self.FONT.render(box["text"], True, (0, 0, 0, 255))
+                    input_surface.blit(text_surf, (10, 5))
+                    config_surface.blit(input_surface, box["rect"].topleft)
+                
+                # 绘制按钮
+                for btn_rect, text, color in [
+                    (save_button, "保存配置", (100, 200, 100, 255)),
+                    (cancel_button, "取消", (200, 100, 100, 255)),
+                    (reset_button, "重置配置", (200, 200, 100, 255))
+                ]:
+                    btn_surface = pygame.Surface((btn_rect.width, btn_rect.height), pygame.SRCALPHA)
+                    btn_surface.fill(color)
+                    pygame.draw.rect(btn_surface, (0, 0, 0, 255), (0, 0, btn_rect.width, btn_rect.height), 2, border_radius=5)
+                    btn_text = self.FONT.render(text, True, (255, 255, 255, 255))
+                    btn_surface.blit(btn_text, (btn_rect.width//2 - btn_text.get_width()//2, btn_rect.height//2 - btn_text.get_height()//2))
+                    config_surface.blit(btn_surface, btn_rect.topleft)
+                
+                self.screen.blit(config_surface, (0, 0))
+                pygame.display.flip()
+                
+                for event in pygame.event.get():
+                    if event.type == QUIT:
+                        pygame.quit()
+                        sys.exit()
+                    if event.type == MOUSEBUTTONDOWN:
+                        for box in input_boxes:
+                            if box["rect"].collidepoint(event.pos):
+                                active_input = box
+                            else:
+                                if active_input == box:
+                                    active_input = None
+                        if save_button.collidepoint(event.pos):
+                            try:
+                                width = int(input_boxes[0]["text"])
+                                height = int(input_boxes[1]["text"])
+                                mine_percentage = int(input_boxes[2]["text"]) / 100
+                                show_time = input_boxes[3]["text"] == "1"
+                                sound_enabled = input_boxes[4]["text"] == "1"
+                                cell_size = int(input_boxes[5]["text"])
+                                tool_size = int(input_boxes[6]["text"])
+                                
+                                if 10 <= width <= 100 and 10 <= height <= 60 and 1 <= mine_percentage <= 30 and 15 <= cell_size <= 40 and 3 <= tool_size <= 7:
+                                    self.width = width
+                                    self.height = height
+                                    self.mine_percentage = mine_percentage
+                                    self.show_time = show_time
+                                    self.sound_manager.enabled = sound_enabled
+                                    self.cell_size = cell_size
+                                    self.tool_size = tool_size
+                                    self.save_config()
+                                    self.reset_game()
+                                    config_active = False
+                                else:
+                                    self.show_message("输入值超出范围，请重新输入", 2000)
+                            except ValueError:
+                                self.show_message("输入格式错误，请输入有效的数字", 2000)
+                        elif cancel_button.collidepoint(event.pos):
+                            config_active = False
+                        elif reset_button.collidepoint(event.pos):
+                            input_boxes[0]["text"] = str(self.original_width)
+                            input_boxes[1]["text"] = str(self.original_height)
+                            input_boxes[2]["text"] = str(int(self.original_mine_percentage * 100))
+                            input_boxes[3]["text"] = "1" if self.original_show_time else "0"
+                            input_boxes[4]["text"] = "1" if self.original_sound_enabled and not self.sound_manager.has_errors() else "0"
+                            input_boxes[5]["text"] = str(self.original_cell_size)
+                            input_boxes[6]["text"] = str(self.original_tool_size)
+                    if event.type == KEYDOWN:
+                        if active_input:
+                            if event.key == K_BACKSPACE:
+                                active_input["text"] = active_input["text"][:-1]
+                            elif event.unicode.isdigit():
+                                active_input["text"] += event.unicode
+        
+        except Exception as e:
+            generate_crash_report(e)
+            print(f"配置界面出错: {e}")
+    
+    def customize_resources(self):
+        Tk().withdraw()
+        flag_path = askopenfilename(title="选择旗子图标", filetypes=[("PNG Files", "*.png")])
+        if flag_path:
+            global FLAG_IMAGE_PATH
+            FLAG_IMAGE_PATH = flag_path
+            self.flag_image = self.load_flag_image()
+
+        bg_path = askopenfilename(title="选择背景图片", filetypes=[("PNG Files", "*.png")])
+        if bg_path:
+            global BACKGROUND_IMAGE_PATH
+            BACKGROUND_IMAGE_PATH = bg_path
+            self.background_image = self.load_background_image()
 
     def run(self):
-        running = True
-        last_click_time = 0
-        last_click_pos = None
-        DOUBLE_CLICK_TIME = 0.3  # 双击时间间隔阈值
-        while running:
+        clock = pygame.time.Clock()
+        while True:
             for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
-                elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.type == QUIT:
+                    pygame.quit()
+                    sys.exit()
+                if event.type == pygame.VIDEORESIZE:
+                    self.window_width, self.window_height = event.size
+                    self.screen = pygame.display.set_mode((self.window_width, self.window_height), pygame.RESIZABLE)
+                    self.background_image = self.load_background_image()
+                if event.type == MOUSEBUTTONDOWN:
                     x, y = event.pos
-                    current_time = time.time()
-                    if (current_time - last_click_time < DOUBLE_CLICK_TIME and
-                            last_click_pos is not None and
-                            abs(x - last_click_pos[0]) < 5 and
-                            abs(y - last_click_pos[1]) < 5):
-                        # 处理双击事件
-                        cell_x = (x // self.effective_cell_size)
-                        cell_y = ((y - self.header_height) // self.effective_cell_size)
-                        self.reveal_around(cell_x, cell_y)
-                    last_click_time = current_time
-                    last_click_pos = (x, y)
-                    for btn_type, rect in self.buttons:
-                        if rect.collidepoint(x, y):
-                            if btn_type == "save":
-                                if self.save_game():
-                                    print("游戏保存成功")
-                                else:
-                                    print("游戏保存失败")
-                            elif btn_type == "reset":
-                                self.reset_game()
-                            elif btn_type == "load":
-                                if self.load_game():
-                                    print("游戏加载成功")
-                                else:
-                                    print("游戏加载失败")
-                            elif btn_type == "config":
-                                self.config_screen()
-                            elif btn_type == "customize":
-                                pass  # 自定义资源功能待实现
-                            elif btn_type == "open_resources":
-                                pass  # 打开资源目录功能待实现
-                            elif btn_type == "tool":
-                                pass  # 使用道具功能待实现
-                    if y > self.header_height:
-                        cell_x = (x // self.effective_cell_size)
-                        cell_y = ((y - self.header_height) // self.effective_cell_size)
-                        if event.button == 1:
-                            self.reveal(cell_x, cell_y)
-                        elif event.button == 3:
-                            self.toggle_flag(cell_x, cell_y)
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        if self.save_config():
-                            print("配置保存成功")
-                        else:
-                            print("配置保存失败")
-                        running = False
+                    if y < self.header_height:
+                        for btn_type, rect in self.buttons:
+                            if rect.collidepoint(x, y):
+                                if btn_type == "tool":
+                                    self.tool_active = True
+                                elif btn_type == "reset":
+                                    self.reset_game()
+                                elif btn_type == "save":
+                                    self.save_game()
+                                elif btn_type == "load":
+                                    self.load_game()
+                                elif btn_type == "config":
+                                    self.config_screen()
+                                elif btn_type == "customize":
+                                    self.customize_resources()
+                                elif btn_type == "open_resources":
+                                    resource_dir = get_resource_path("")
+                                    if os.name == 'nt':
+                                        os.startfile(resource_dir)
+                                    elif os.name == 'posix':
+                                        subprocess.call(['open', resource_dir])
+                    else:
+                        board_x = (x - 10) // self.effective_cell_size
+                        board_y = (y - self.header_height - 10) // self.effective_cell_size
+                        if event.button == 1:  # 左键
+                            if self.tool_active:
+                                if self.use_tool(board_x, board_y):
+                                    self.tool_active = False
+                            else:
+                                self.reveal(board_x, board_y)
+                        elif event.button == 3:  # 右键
+                            self.toggle_flag(board_x, board_y)
+                        elif event.button == 2:  # 中键
+                            self.reveal_around(board_x, board_y)
 
             if not self.game_over and not self.win:
-                self.game_time = int(time.time() - self.start_time)
-                if self.check_win():
-                    self.win = True
+                self.win = self.check_win()
+                if self.win:
                     if not self.sound_manager.has_errors():
                         self.sound_manager.play("win")
 
             self.draw()
-
-        pygame.quit()
-
+            clock.tick(60)
 
 if __name__ == "__main__":
     game = Minesweeper()
