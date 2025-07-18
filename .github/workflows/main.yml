@@ -1,31 +1,29 @@
 name: Build Minesweeper to EXE
 on:
-  workflow_dispatch:  # 允许手动触发工作流
-  push:  # 每次推送代码到仓库也能触发工作流
-    branches:
-      - main  # 这里假设主分支是main，若你的主分支是master，改为master
+  workflow_dispatch:
 jobs:
   build:
-    runs-on: windows-latest  # 使用最新的Windows环境运行任务
+    runs-on: windows-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4  # 获取仓库中的代码
+        uses: actions/checkout@v4
       - name: Set up Python 3.8
         uses: actions/setup-python@v4
         with:
-          python-version: '3.8'  # 设置Python版本为3.8，较适合Win7等系统
+          python-version: '3.8'
       - name: Install dependencies
         run: |
-          pip install pyinstaller==5.13.2  # 安装指定版本的PyInstaller
-          pip install pygame  # 安装游戏依赖的pygame库
+          pip install pyinstaller==5.13.2
+          pip install pygame
       - name: Build EXE
+        shell: bash  # 明确指定使用Bash
         run: |
           pyinstaller --onefile --windowed --name "扫雷" \
             --add-data "images/*;images/" \
             --add-data "sounds/*;sounds/" \
-            扫雷.py  # 执行打包命令，--add-data添加资源文件
+            扫雷.py
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: "扫雷游戏"
-          path: dist/  # 上传打包生成的dist目录（包含.exe文件）
+          path: dist/
