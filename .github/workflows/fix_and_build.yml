@@ -1,57 +1,42 @@
-name: Unzip Mod and Commit
+name: Build Forge Mod
 
 on:
   push:
-    paths:
-      - 'bonsaitree_forge_mod.zip'
+    branches: [ main ]
+    paths: [ 'src/**', 'build.gradle' ]
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
-  unzip-and-commit:
+  build:
     runs-on: ubuntu-latest
-    permissions: 
-      contents: write  # 添加写权限
-    
+    strategy:
+      matrix:
+        java: [ '17' ]
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # 获取完整历史
+        fetch-depth: 0  # 获取完整历史记录
         
-    - name: Check ZIP file exists
-      run: |
-        if [ ! -f bonsaitree_forge_mod.zip ]; then
-          echo "::error::ZIP file not found in root directory!"
-          exit 1
-        fi
-        
-    - name: Create directory
-      run: mkdir -p bonsaitree_mod
-      
-    - name: Unzip mod package
-      run: |
-        unzip -o bonsaitree_forge_mod.zip -d bonsaitree_mod/
-        echo "Unzip completed successfully!"
-        
-    - name: List files
-      run: ls -R bonsaitree_mod
-      
-    - name: Commit changes
-      run: |
-        git config user.name "GitHub Actions"
-        git config user.email "actions@github.com"
-        
-        git add bonsaitree_mod
-        
-        # 仅当有变化时提交
-        if git diff-index --quiet HEAD --; then
-          echo "没有变化，无需提交"
-        else
-          git commit -m "自动解压模组文件 [skip ci]"
-        fi
-        
-    - name: Push changes
-      uses: ad-m/github-push-action@master
+    - name: Set up JDK ${{ matrix.java }}
+      uses: actions/setup-java@v3
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        branch: main
-        force: true  # 允许强制推送
+        java-version: ${{ matrix.java }}
+        distribution: 'temurin'
+        cache: 'gradle'
+        
+    - name: Grant execute permission
+      run: chmod +x gradlew
+      
+    - name: Build mod
+      run: ./gradlew build --no-daemon --stacktrace
+      
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: bonsai-mod
+        path: |
+          build/libs/*.jar
+          build/libs/output.json
+        retention-days: 7
