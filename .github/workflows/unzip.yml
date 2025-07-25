@@ -2,7 +2,7 @@ name: Download and Unzip Bonsai Mod
 on:
   push:
     branches: [ main ]
-  workflow_dispatch: # 允许手动触发工作流
+  workflow_dispatch:
 
 jobs:
   unzip_mod:
@@ -16,8 +16,12 @@ jobs:
 
       - name: 下载bonsaitree_forge_mod.zip
         run: |
-          wget "https://github.com/Atclid/atclid/raw/main/bonsaitree_forge_mod.zip" -O "bonsai_mod.zip"
-          # 注意：如果文件不在main分支或根目录，请修改raw后的路径
+          # 使用GitHub API下载文件，增加错误处理
+          wget --no-check-certificate "https://raw.githubusercontent.com/Atclid/atclid/main/bonsaitree_forge_mod.zip" -O "bonsai_mod.zip"
+          if [ $? -ne 0 ]; then
+            echo "下载失败，可能是文件不存在或路径错误"
+            exit 1
+          fi
 
       - name: 检查下载是否成功
         run: |
