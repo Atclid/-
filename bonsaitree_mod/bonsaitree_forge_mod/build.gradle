@@ -1,16 +1,16 @@
-// 插件应用（调整顺序，确保 ForgeGradle 正确加载）
+// 插件应用（使用适用于 Minecraft 1.20.1 的 ForgeGradle 7.x）
 plugins {
+    id 'java'
     id 'eclipse'
     id 'maven-publish'
-    id 'net.minecraftforge.gradle' version '6.1.55' // 锁定稳定版本，避免范围导致的兼容性问题
-    id 'org.parchmentmc.librarian.forgegradle' version '1.3' // 锁定版本，1.+ 可能引入不稳定更新
-    id 'java' // 显式应用 Java 插件，确保 Java 工具链正常工作
+    id 'net.minecraftforge.gradle' version '7.2.0'
+    id 'org.parchmentmc.librarian.forgegradle' version '1.+'
 }
 
 // Gradle Wrapper 配置
 wrapper {
     gradleVersion = "8.4"
-    distributionType = Wrapper.DistributionType.BIN // 通常用 BIN 即可，ALL 包含源码，体积大
+    distributionType = Wrapper.DistributionType.BIN
 }
 
 // 项目基本信息
@@ -18,14 +18,14 @@ version = '1.0'
 group = 'com.yourmod.bonsaitree'
 archivesBaseName = 'bonsaitree'
 
-// Java 版本配置（Minecraft 1.20.1 需要 Java 17，使用工具链更可靠）
+// Java 版本配置（Minecraft 1.20.1 需要 Java 17）
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
     }
 }
 
-// 打印系统信息（调试用，可选保留）
+// 打印系统信息（调试用）
 println "Java: ${System.getProperty('java.version')}, JVM: ${System.getProperty('java.vm.version')} (${System.getProperty('java.vendor')}), Arch: ${System.getProperty('os.arch')}"
 
 // Minecraft 模组配置
@@ -34,9 +34,9 @@ minecraft {
     
     accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
 
-    // 运行配置（客户端、服务器等），优化冗余配置
+    // 运行配置（提取公共配置，减少冗余）
     runs {
-        common { // 提取公共配置，避免重复
+        common {
             workingDirectory project.file('run')
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
@@ -50,17 +50,14 @@ minecraft {
 
         client {
             extendsFrom common
-            // 可添加客户端特有配置，如窗口设置等（当前无则保留继承）
         }
 
         server {
             extendsFrom common
-            // 服务器特有配置（当前无则保留继承）
         }
 
         gameTestServer {
             extendsFrom common
-            // 游戏测试服务器特有配置（当前无则保留继承）
         }
 
         data {
@@ -70,34 +67,30 @@ minecraft {
     }
 }
 
-// 资源目录配置，确保 `src/main/resources` 被正确识别，包含 pack.mcmeta
+// 资源目录配置（确保 src/main/resources 被正确打包）
 sourceSets {
     main {
         resources {
-            srcDir 'src/main/resources'
-            srcDir 'src/generated/resources' // 补充生成资源目录
-            include '**/*' // 确保所有资源文件（含 pack.mcmeta）都被打包
+            srcDirs = ['src/main/resources', 'src/generated/resources']
+            include '**/*'
         }
     }
 }
 
-// 依赖仓库，优化结构
+// 依赖仓库
 repositories {
-    maven {
-        url "https://cursemaven.com"
-        content {
-            includeGroup "curse.maven"
-        }
-    }
-    mavenCentral() // 补充常用仓库，避免依赖下载失败
+    mavenCentral()
+    maven { url = "https://maven.minecraftforge.net/" }
+    maven { url = "https://cursemaven.com" }
+    maven { url = "https://maven.parchmentmc.org" }
 }
 
-// 项目依赖，锁定 Forge 版本到 1.20.1 适配的稳定版
+// 项目依赖（使用最新的 Forge 1.20.1 版本）
 dependencies {
-    minecraft 'net.minecraftforge:forge:1.20.1-47.1.0'
+    minecraft 'net.minecraftforge:forge:1.20.1-47.3.22'
 }
 
-// JAR 打包配置，优化 Manifest 信息
+// JAR 打包配置
 jar {
     manifest {
         attributes(
@@ -105,17 +98,17 @@ jar {
             "Specification-Vendor": "YourName",
             "Specification-Version": "1",
             "Implementation-Title": project.name,
-            "Implementation-Version": project.version, // 改用 project.version 更规范
+            "Implementation-Version": project.version,
             "Implementation-Vendor": "YourName",
             "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
         )
     }
 }
 
-// 混淆处理（Forge 必需，确保在 jar 任务之后执行）
+// 混淆处理
 tasks.jar.finalizedBy('reobfJar')
 
-// 发布配置，优化仓库配置
+// 发布配置
 publishing {
     publications {
         mavenJava(MavenPublication) {
@@ -124,27 +117,26 @@ publishing {
     }
     repositories {
         maven {
-            url "file://${projectDir}/../mcmodsrepo" // 使用字符串插值，避免路径拼接问题
+            url = "file://${projectDir}/../mcmodsrepo"
         }
     }
 }
 
-// 编码配置，确保所有 Java 编译任务使用 UTF-8
+// 编码配置
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
-// 额外任务：确保 pack.mcmeta 被正确打包，可添加检查任务（可选，用于调试）
+// 确保 pack.mcmeta 存在（可选检查）
 task checkPackMcmeta {
     doLast {
-        def resourcesDir = file('src/main/resources')
-        def packMcmeta = new File(resourcesDir, 'pack.mcmeta')
+        def packMcmeta = file('src/main/resources/pack.mcmeta')
         if (!packMcmeta.exists()) {
-            throw new GradleException("Missing required file: ${packMcmeta.absolutePath}")
+            throw new GradleException("Missing pack.mcmeta file!")
         }
-        println "✅ pack.mcmeta 存在，路径：${packMcmeta.absolutePath}"
+        println "✅ pack.mcmeta found"
     }
 }
 
-// 让构建任务依赖检查任务，确保打包前验证 pack.mcmeta 存在（可选，按需启用）
-tasks.build.dependsOn(checkPackMcmeta)
+// 构建前检查 pack.mcmeta
+tasks.processResources.dependsOn(checkPackMcmeta)
