@@ -1,129 +1,101 @@
-name: 构建 Minecraft 模组
-on:
-  push:
-    paths:
-      - 'bonsaitree_mod/bonsaitree_forge_mod/**'
-  workflow_dispatch:
+- name: 强制生成完整的 Gradle Wrapper
+  working-directory: ${{ env.mod_dir }}
+  run: |
+    # 安全删除现有文件（忽略不存在的文件，避免报错）
+    rm -f gradlew || true
+    rm -f gradlew.bat || true
+    rm -rf gradle/wrapper || true
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    # 创建必要的目录
+    mkdir -p gradle/wrapper
 
-    steps:
-      - name: 检出代码
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+    # 生成 wrapper 配置文件
+    echo "distributionBase=GRADLE_USER_HOME" > gradle/wrapper/gradle-wrapper.properties
+    echo "distributionPath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
+    echo "distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip" >> gradle/wrapper/gradle-wrapper.properties
+    echo "zipStoreBase=GRADLE_USER_HOME" >> gradle/wrapper/gradle-wrapper.properties
+    echo "zipStorePath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
 
-      - name: 验证模组目录
-        run: |
-          MOD_DIR="bonsaitree_mod/bonsaitree_forge_mod"
-          if [ ! -d "$MOD_DIR" ]; then
-            echo "❌ 模组目录不存在: $MOD_DIR"
-            exit 1
-          fi
-          echo "mod_dir=$MOD_DIR" >> $GITHUB_ENV
-          echo "📂 模组目录内容:"
-          ls -la $MOD_DIR
+    # 下载 gradle-wrapper.jar（使用重试机制，确保下载成功）
+    if ! wget -q -O gradle/wrapper/gradle-wrapper.jar https://repo.gradle.org/gradle/libs-releases-local/org/gradle/wrapper/gradle-wrapper/8.4/gradle-wrapper-8.4.jar; then
+      echo "❌ 下载 gradle-wrapper.jar 失败，重试一次..."
+      wget -q -O gradle/wrapper/gradle-wrapper.jar https://repo.gradle.org/gradle/libs-releases-local/org/gradle/wrapper/gradle-wrapper/8.4/gradle-wrapper-8.4.jar || exit 1
+    fi
 
-      - name: 检查并补全 settings.gradle
-        working-directory: ${{ env.mod_dir }}
-        run: |
-          if [ ! -f "settings.gradle" ]; then
-            echo "⚠️ 生成 settings.gradle"
-            cat << EOF > settings.gradle
-          pluginManagement {
-              repositories {
-                  maven { url "https://maven.minecraftforge.net/" }
-                  gradlePluginPortal()
-                  maven { url "https://maven.parchmentmc.org/" }
-              }
-          }
-          rootProject.name = "bonsaitree_forge_mod"
-          EOF
-          else
-            echo "✅ settings.gradle 已存在"
-          fi
+    # 创建 Linux 执行脚本（gradlew）
+    cat << 'EOF' > gradlew
+#!/usr/bin/env bash
+exec java -Dorg.gradle.appname=gradlew -classpath "$(dirname "$0")/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
+EOF
+    chmod +x gradlew
 
-      - name: 验证 plugins 块位置
-        working-directory: ${{ env.mod_dir }}
-        run: |
-          echo "🔍 检查 plugins 块是否存在..."
-          if ! grep -q "^plugins *{" build.gradle; then
-            echo "❌ build.gradle 中未找到 plugins 块"
-            exit 1
-          fi
-          echo "✅ plugins 块存在"
+    # 创建 Windows 执行脚本（gradlew.bat）
+    cat << 'EOF' > gradlew.bat
+@if "%DEBUG%" == "" @echo off
+@rem ##########################################################################
+@rem
+@rem  Gradle startup script for Windows
+@rem
+@rem ##########################################################################
+@rem Set local scope for the variables with windows NT shell
+if "%OS%"=="Windows_NT" setlocal
+set DIRNAME=%~dp0
+if "%DIRNAME%" == "" set DIRNAME=.
+set APP_BASE_NAME=%~n0
+set APP_HOME=%DIRNAME%gradle\wrapper
+@rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
+set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
+@rem Find java.exe
+if defined JAVA_HOME goto findJavaFromJavaHome
+set JAVA_EXE=java.exe
+%JAVA_EXE% -version >NUL 2>&1
+if "%ERRORLEVEL%" == "0" goto init
+echo.
+echo ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.
+echo.
+echo Please set the JAVA_HOME variable in your environment to match the
+echo location of your Java installation.
+goto fail
+:findJavaFromJavaHome
+set JAVA_HOME=%JAVA_HOME:"=%
+set JAVA_EXE=%JAVA_HOME%/bin/java.exe
+if exist "%JAVA_EXE%" goto init
+echo.
+echo ERROR: JAVA_HOME is set to an invalid directory: %JAVA_HOME%
+echo.
+echo Please set the JAVA_HOME variable in your environment to match the
+echo location of your Java installation.
+goto fail
+:init
+@rem Get command-line arguments, handling Windows variants
+if not "%OS%" == "Windows_NT" goto win9xME_args
+:win9xME_args
+@rem Slurp the command line arguments.
+set CMD_LINE_ARGS=
+set _SKIP=2
+:win9xME_args_slurp
+if "x%~1" == "x" goto execute
+set CMD_LINE_ARGS=%*
+:execute
+@rem Setup the command line
+set CLASSPATH=%APP_HOME%\gradle-wrapper.jar
+@rem Execute Gradle
+"%JAVA_EXE%" %DEFAULT_JVM_OPTS% %JAVA_OPTS% %GRADLE_OPTS% "-Dorg.gradle.appname=%APP_BASE_NAME%" -classpath "%CLASSPATH%" org.gradle.wrapper.GradleWrapperMain %CMD_LINE_ARGS%
+:end
+@rem End local scope for the variables with windows NT shell
+if "%ERRORLEVEL%"=="0" goto mainEnd
+:fail
+rem Set variable GRADLE_EXIT_CONSOLE if you need the _script_ return code instead of
+rem the _cmd.exe /c_ return code!
+if  not "" == "%GRADLE_EXIT_CONSOLE%" exit 1
+exit /b 1
+:mainEnd
+if "%OS%"=="Windows_NT" endlocal
+:omega
+EOF
 
-      - name: 配置 JDK 17
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: 'gradle'
-
-      - name: 强制生成完整的 Gradle Wrapper
-        working-directory: ${{ env.mod_dir }}
-        run: |
-          # 删除可能不完整的现有文件
-          rm -f gradlew
-          rm -rf gradle/wrapper
-
-          # 创建必要的目录
-          mkdir -p gradle/wrapper
-
-          # 生成 wrapper 配置文件
-          echo "distributionBase=GRADLE_USER_HOME" > gradle/wrapper/gradle-wrapper.properties
-          echo "distributionPath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
-          echo "distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip" >> gradle/wrapper/gradle-wrapper.properties
-          echo "zipStoreBase=GRADLE_USER_HOME" >> gradle/wrapper/gradle-wrapper.properties
-          echo "zipStorePath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
-
-          # 下载 gradle-wrapper.jar
-          wget -q -O gradle/wrapper/gradle-wrapper.jar https://repo.gradle.org/gradle/libs-releases-local/org/gradle/wrapper/gradle-wrapper/8.4/gradle-wrapper-8.4.jar
-
-          # 创建 gradlew 脚本
-          echo "#!/usr/bin/env bash" > gradlew
-          echo "SDKMAN_DIR=\"\$HOME/.sdkman\"" >> gradlew
-          echo "[ -f \"\$SDKMAN_DIR/bin/sdkman-init.sh\" ] && source \"\$SDKMAN_DIR/bin/sdkman-init.sh\"" >> gradlew
-          echo "exec java -Dorg.gradle.appname=gradlew -classpath \"\$0/../gradle/wrapper/gradle-wrapper.jar\" org.gradle.wrapper.GradleWrapperMain \"\$@\"" >> gradlew
-          chmod +x gradlew
-
-          # 验证生成的文件
-          echo "✅ Gradle Wrapper 文件已生成:"
-          ls -la gradle/wrapper
-          cat gradle/wrapper/gradle-wrapper.properties
-
-      - name: 构建模组
-        working-directory: ${{ env.mod_dir }}
-        run: |
-          echo "🚀 开始构建..."
-          ./gradlew build --no-daemon
-          echo "→ 构建产物:"
-          ls -la build/libs/
-
-      - name: 提交补全的文件
-        if: success()
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add ${{ env.mod_dir }}/settings.gradle
-          git add ${{ env.mod_dir }}/gradlew
-          git add ${{ env.mod_dir }}/gradlew.bat
-          git add ${{ env.mod_dir }}/gradle/wrapper/
-          if [[ $(git status --porcelain) ]]; then
-            git commit -m "自动补全配置文件"
-            git push
-            echo "✅ 已提交补全的文件"
-          else
-            echo "⚠️ 无文件变更"
-          fi
-
-      - name: 上传构建产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: bonsaitree-mod
-          path: ${{ env.mod_dir }}/build/libs/*.jar
-          if-no-files-found: error
+    # 验证生成的文件
+    echo "✅ 生成的 Gradle Wrapper 文件："
+    ls -la gradle/wrapper
+    echo "📄 gradle-wrapper.properties 内容："
+    cat gradle/wrapper/gradle-wrapper.properties
