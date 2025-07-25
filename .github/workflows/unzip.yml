@@ -1,44 +1,40 @@
 name: Download and Unzip Bonsai Mod
 on:
-  # 触发条件：可根据需要修改（如push到main分支、手动触发等）
   push:
     branches: [ main ]
   workflow_dispatch: # 允许手动触发工作流
 
 jobs:
   unzip_mod:
-    runs-on: ubuntu-latest # 使用Ubuntu环境
+    runs-on: ubuntu-latest
     steps:
       - name: 检出当前仓库代码
-        uses: actions/checkout@v4 # 检出仓库到工作目录
+        uses: actions/checkout@v4
 
-      - name: 安装unzip工具（确保环境支持解压）
+      - name: 安装unzip工具
         run: sudo apt-get update && sudo apt-get install -y unzip
 
-      - name: 下载仓库中的bonsaitree_forge_mod.zip
+      - name: 下载bonsaitree_forge_mod.zip
         run: |
-          # 替换为你的仓库信息（username是用户名，repo是仓库名）
-          wget "https://github.com/[your-username]/[your-repo]/raw/main/bonsaitree_forge_mod.zip" -O "bonsai_mod.zip"
-          # 说明：raw/main表示文件在main分支的根目录，若文件在其他分支，需替换main为对应分支名
+          wget "https://github.com/Atclid/atclid/raw/main/bonsaitree_forge_mod.zip" -O "bonsai_mod.zip"
+          # 注意：如果文件不在main分支或根目录，请修改raw后的路径
 
       - name: 检查下载是否成功
         run: |
           if [ -f "bonsai_mod.zip" ]; then
             echo "文件下载成功！"
           else
-            echo "错误：未找到bonsaitree_forge_mod.zip，请检查文件名和路径"
+            echo "错误：未找到bonsaitree_forge_mod.zip，请检查文件路径"
             exit 1
           fi
 
-      - name: 解压zip文件到指定目录
+      - name: 解压zip文件
         run: |
-          # 创建解压目录（如mods_extracted，可自定义）
           mkdir -p mods_extracted
-          # 解压文件到该目录
           unzip bonsai_mod.zip -d mods_extracted
           echo "解压完成，文件已保存到mods_extracted目录"
 
-      - name: 查看解压结果（可选，用于验证）
+      - name: 查看解压结果
         run: |
           echo "解压后的文件列表："
           ls -l mods_extracted/
