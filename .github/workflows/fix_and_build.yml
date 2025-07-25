@@ -1,74 +1,34 @@
-name: Build Bonsai Tree Mod
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-  workflow_dispatch:  # 允许手动触发
+name: Build Bonsai Mod
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write  # 允许上传构建产物
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # 获取完整历史
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: 'gradle'  # 缓存Gradle依赖
+          cache: 'gradle'
 
-      - name: Cache Gradle files
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      - name: Validate Gradle wrapper
+      - name: Generate Gradle Wrapper
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          # 确保Gradle wrapper存在
-          if [ ! -f "gradlew" ]; then
-            echo "生成Gradle wrapper..."
-            gradle wrapper --gradle-version=8.4 --distribution-type=bin
-            chmod +x gradlew
-          fi
-          
-          # 验证wrapper版本
-          ./gradlew --version
+          # 直接用系统 Gradle 生成 Wrapper（避免依赖项目内文件）
+          gradle wrapper --gradle-version=8.4 --distribution-type=bin
+          chmod +x gradlew
 
       - name: Build with Gradle
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          # 使用完整的Gradle命令，包含错误处理
-          ./gradlew build --stacktrace --no-daemon --warning-mode all || {
-            echo "构建失败！查看详细日志..."
-            if [ -f "build/reports/errors/failure-report.html" ]; then
-              cat build/reports/errors/failure-report.html
-            fi
-            exit 1
-          }
+          ./gradlew build --stacktrace --no-daemon
 
-      - name: Upload build artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: bonsaitree-mod
           path: bonsaitree_mod/bonsaitree_forge_mod/build/libs/*.jar
-          if-no-files-found: error  # 确保有构建产物
-
-      - name: Show build results
-        working-directory: bonsaitree_mod/bonsaitree_forge_mod
-        run: |
-          echo "构建结果："
-          ls -la build/libs/
