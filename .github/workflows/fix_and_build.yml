@@ -15,24 +15,19 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: 清除旧缓存
+      - name: 清除旧缓存（关键）
         run: rm -rf ~/.gradle/caches/
 
-      - name: 生成 Gradle Wrapper（使用 7.5 版本，与 6.0.14 兼容）
+      - name: 生成 Gradle Wrapper（7.3 版本，与 5.1.3 兼容）
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          gradle wrapper --gradle-version=7.5 --distribution-type=bin
+          gradle wrapper --gradle-version=7.3 --distribution-type=bin
           chmod +x gradlew
 
-      - name: 构建（带重试）
+      - name: 构建（带详细日志）
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          for i in {1..3}; do
-            ./gradlew build --stacktrace --no-daemon && exit 0
-            echo "第 $i 次失败，重试..."
-            sleep 5
-          done
-          exit 1
+          ./gradlew build --info --stacktrace --no-daemon
 
       - name: 上传产物
         uses: actions/upload-artifact@v4
