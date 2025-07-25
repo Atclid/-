@@ -1,14 +1,15 @@
-// 新增在 plugins 之前
-wrapper {
-    gradleVersion = "8.4"
-    distributionType = Wrapper.DistributionType.ALL
-}
-
+// 正确：plugins 块必须是第一个代码块
 plugins {
     id 'eclipse'
     id 'maven-publish'
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
     id 'org.parchmentmc.librarian.forgegradle' version '1.+'
+}
+
+// 修复：将 wrapper 块移到 plugins 块之后
+wrapper {
+    gradleVersion = "8.4"
+    distributionType = Wrapper.DistributionType.ALL
 }
 
 version = '1.0'
