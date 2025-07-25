@@ -33,11 +33,13 @@ public class BonsaiCropBlock extends CropBlock {
         builder.add(AGE);
     }
 
+    // 关联种子物品
     @Override
     protected ItemLike getBaseSeedId() {
         return ModItems.BONSAI_SEEDS.get();
     }
 
+    // 只能种在耕地上
     @Override
     protected boolean mayPlaceOn(BlockState state, BlockGetter worldIn, BlockPos pos) {
         return state.is(Blocks.FARMLAND);
