@@ -1,6 +1,6 @@
 {
-  "parent": "item/generated",
+  "parent": "item/block",  // 方块物品的标准父模型
   "textures": {
-    "layer0": "bonsaitree:item/bonsai_tree"
+    "layer0": "bonsaitree:block/bonsai_tree"  // 指向方块纹理（不是物品纹理）
   }
 }
