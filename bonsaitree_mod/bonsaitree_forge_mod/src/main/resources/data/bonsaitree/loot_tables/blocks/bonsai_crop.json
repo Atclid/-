@@ -1,0 +1,28 @@
+{
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "bonsaitree:bonsai_seeds",
+          "conditions": [
+            {
+              "condition": "minecraft:block_state_property",
+              "block": "bonsaitree:bonsai_crop",
+              "properties": {
+                "age": "3"
+              }
+            }
+          ]
+        }
+      ],
+      "conditions": [
+        {
+          "condition": "minecraft:survives_explosion"
+        }
+      ]
+    }
+  ]
+}

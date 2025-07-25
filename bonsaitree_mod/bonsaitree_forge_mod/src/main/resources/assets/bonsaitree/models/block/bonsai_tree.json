@@ -1,0 +1,7 @@
+{
+  "parent": "block/cross",
+  "textures": {
+    "particle": "bonsaitree:block/bonsai_tree",
+    "cross": "bonsaitree:block/bonsai_tree"
+  }
+}

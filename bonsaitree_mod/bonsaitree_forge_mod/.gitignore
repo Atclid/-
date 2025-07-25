@@ -1,0 +1,29 @@
+# Gradle
+.gradle/
+build/
+
+# Forge
+run/
+out/
+eclipse/
+
+# IntelliJ
+.idea/
+*.iml
+
+# VS Code
+.settings/
+.vscode/
+bin/
+
+# Mac
+.DS_Store
+
+# Logs
+logs/
+debug.log
+latest.log
+
+# Other
+*.class
+*.jar

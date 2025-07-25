@@ -1,0 +1,9 @@
+modLoader="javafml"
+loaderVersion="[47.1.0,)"
+license="All rights reserved"
+[[mods]]
+modId="bonsaitree"
+version="1.0"
+displayName="Bonsai Tree Mod"
+authors="YourName"
+description='''添加盆景树苗种子，在耕地上种植获得快速木材来源'''
