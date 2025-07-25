@@ -3,8 +3,8 @@ name: Unzip Mod and Commit
 on:
   push:
     paths:
-      - 'bonsaitree_forge_mod.zip'  # 只在ZIP文件变化时触发
-  workflow_dispatch:  # 允许手动触发工作流
+      - 'bonsaitree_forge_mod.zip'
+  workflow_dispatch:
 
 jobs:
   unzip-and-commit:
@@ -13,7 +13,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 获取完整历史，允许提交
+          fetch-depth: 0
 
       - name: Install unzip
         run: sudo apt-get update && sudo apt-get install -y unzip
@@ -24,7 +24,7 @@ jobs:
           if [ -f "bonsaitree_forge_mod.zip" ]; then
             echo "file_exists=true" >> $GITHUB_ENV
           else
-            echo "错误：未找到bonsaitree_forge_mod.zip文件"
+            echo "错误：未找到文件"
             echo "file_exists=false" >> $GITHUB_ENV
             exit 1
           fi
@@ -32,14 +32,8 @@ jobs:
       - name: Unzip mod package
         if: env.file_exists == 'true'
         run: |
-          # 创建解压目录
           mkdir -p bonsaitree_mod
-          
-          # 解压ZIP文件
           unzip bonsaitree_forge_mod.zip -d bonsaitree_mod/
-          
-          # 列出解压内容验证
-          echo "解压后的内容："
           ls -R bonsaitree_mod
 
       - name: Commit unzipped files
@@ -47,21 +41,19 @@ jobs:
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          
-          # 检查是否有文件变更
           if [[ $(git status --porcelain) ]]; then
-            git add bonsaitree_mod/  # 只添加解压目录，避免意外提交其他文件
+            git add bonsaitree_mod/
             git commit -m "自动解压模组文件"
-            echo "有文件变更，已提交！"
+            echo "有变更，已提交"
           else
-            echo "没有文件变更，跳过提交"
+            echo "无变更，跳过"
             exit 0
           fi
 
       - name: Push changes
         if: env.file_exists == 'true'
-        uses: ad-m/github-push-action@v0.6.0  # 使用固定版本
+        uses: ad-m/github-push-action@v0.6.0
         with:
-          github_token: ${{ secrets.PAT_TOKEN }}  # 使用你创建的安全PAT令牌
+          github_token: ${{ secrets.PAT_TOKEN }}  # 确保缩进正确
           branch: main
           force: false
