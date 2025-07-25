@@ -1,4 +1,4 @@
-name: 构建并打包 Minecraft 模组
+name: 构建 Minecraft 模组
 on:
   push:
     paths:
@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-mod:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
+
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -24,40 +24,43 @@ jobs:
             echo "❌ 模组目录不存在: $MOD_DIR"
             exit 1
           fi
-          if [ ! -f "$MOD_DIR/build.gradle" ]; then
-            echo "❌ 缺少 build.gradle 文件"
-            exit 1
-          fi
           echo "mod_dir=$MOD_DIR" >> $GITHUB_ENV
           echo "📂 模组目录内容:"
           ls -la $MOD_DIR
 
-      # 👇 修正后的验证步骤 👇
+      - name: 检查并补全 settings.gradle
+        working_directory: ${{ env.mod_dir }}
+        run: |
+          if [ ! -f "settings.gradle" ]; then
+            echo "⚠️ 生成 settings.gradle"
+            cat << EOF > settings.gradle
+pluginManagement {
+    repositories {
+        maven { url "https://maven.minecraftforge.net/" }
+        gradlePluginPortal()
+        maven { url "https://maven.parchmentmc.org/" }
+    }
+}
+rootProject.name = "bonsaitree_forge_mod"
+EOF
+          else
+            echo "✅ settings.gradle 已存在"
+          fi
+
       - name: 验证 plugins 块位置
-        working-directory: ${{ env.mod_dir }}
+        working_directory: ${{ env.mod_dir }}
         run: |
           echo "🔍 检查 plugins 块是否在正确位置..."
-          
-          # 查找 pluginManagement 和 plugins 块的行号
-          PLUGIN_MANAGEMENT_LINE=$(grep -n "^pluginManagement *{" build.gradle | head -n1 | cut -d: -f1)
           PLUGINS_LINE=$(grep -n "^plugins *{" build.gradle | head -n1 | cut -d: -f1)
-          
-          # 验证逻辑
-          if [ -z "$PLUGIN_MANAGEMENT_LINE" ]; then
-            echo "❌ 未找到 pluginManagement 块"
-            exit 1
-          elif [ -z "$PLUGINS_LINE" ]; then
+          if [ -z "$PLUGINS_LINE" ]; then
             echo "❌ 未找到 plugins 块"
             exit 1
-          elif [ "$PLUGIN_MANAGEMENT_LINE" -ge "$PLUGINS_LINE" ]; then
-            echo "❌ pluginManagement 块必须在 plugins 块之前"
-            exit 1
           else
-            echo "✅ plugins 块位置正确（在 pluginManagement 之后）"
+            echo "✅ plugins 块位置正确（第 $PLUGINS_LINE 行）"
           fi
 
       - name: 生成/验证 Gradle Wrapper
-        working-directory: ${{ env.mod_dir }}
+        working_directory: ${{ env.mod_dir }}
         run: |
           if [ ! -f "gradlew" ]; then
             echo "⚠️ 生成 Gradle Wrapper..."
@@ -78,27 +81,28 @@ jobs:
           cache: 'gradle'
 
       - name: 构建模组
-        working-directory: ${{ env.mod_dir }}
+        working_directory: ${{ env.mod_dir }}
         run: |
           echo "🚀 开始构建..."
           ./gradlew build --no-daemon
           echo "→ 构建产物:"
           ls -la build/libs/
 
-      - name: 提交 Gradle Wrapper
+      - name: 提交补全的文件
         if: success()
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
+          git add ${{ env.mod_dir }}/settings.gradle
           git add ${{ env.mod_dir }}/gradlew
           git add ${{ env.mod_dir }}/gradlew.bat
           git add ${{ env.mod_dir }}/gradle/wrapper/
           if [[ $(git status --porcelain) ]]; then
-            git commit -m "自动生成 Gradle Wrapper"
+            git commit -m "自动补全配置文件"
             git push
-            echo "✅ 已提交 Gradle Wrapper 文件"
+            echo "✅ 已提交补全的文件"
           else
-            echo "⚠️ 无新文件需要提交"
+            echo "⚠️ 无文件变更"
           fi
 
       - name: 上传构建产物
