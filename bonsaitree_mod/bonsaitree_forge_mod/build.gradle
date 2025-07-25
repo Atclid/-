@@ -1,45 +1,31 @@
 buildscript {
     repositories {
-        // 优先使用 Forge 官方仓库
+        // 仅保留 Forge 官方仓库，移除其他可能干扰的仓库
         maven { url = "https://maven.minecraftforge.net/" }
-        mavenCentral()
-        gradlePluginPortal()
     }
     dependencies {
-        // 正确坐标：artifactId 是 forge-gradle，版本 7.0.0（1.20.1 稳定适配）
-        classpath 'net.minecraftforge.gradle:forge-gradle:7.0.0'
+        // 使用经过验证的 ForgeGradle 6.2.0（适配 1.20.1）
+        classpath 'net.minecraftforge.gradle:ForgeGradle:6.2.0'
     }
 }
 
 plugins {
     id 'java'
     id 'eclipse'
-    id 'maven-publish'
 }
 
-// 应用 Forge 插件（使用正确的插件 ID）
 apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'org.parchmentmc.librarian.forgegradle'
 
-// Gradle Wrapper 配置
-wrapper {
-    gradleVersion = "8.4"
-    distributionType = Wrapper.DistributionType.BIN
-}
-
-// 项目基本信息
 version = '1.0.0'
 group = 'com.yourmod.bonsaitree'
-archivesBaseName = 'bonsaitree'
 
-// Java 版本（1.20.1 必须用 Java 17）
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
     }
 }
 
-// Minecraft 配置
 minecraft {
     mappings channel: 'parchment', version: '2023.09.03-1.20.1'
     accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
@@ -47,8 +33,6 @@ minecraft {
     runs {
         client {
             workingDirectory project.file('run')
-            property 'forge.logging.markers', 'REGISTRIES'
-            property 'forge.logging.console.level', 'debug'
             mods {
                 bonsaitree {
                     source sourceSets.main
@@ -58,33 +42,15 @@ minecraft {
     }
 }
 
-// 资源目录
-sourceSets.main.resources.srcDirs = ['src/main/resources', 'src/generated/resources']
-
-// 依赖仓库
 repositories {
     maven { url = "https://maven.minecraftforge.net/" }
-    mavenCentral()
 }
 
-// 依赖（Forge 1.20.1 稳定版）
 dependencies {
-    minecraft 'net.minecraftforge:forge:1.20.1-47.3.22'
+    // 使用与 ForgeGradle 6.2.0 兼容的 Forge 版本
+    minecraft 'net.minecraftforge:forge:1.20.1-47.1.0'
 }
 
-// JAR 打包
 jar {
-    manifest {
-        attributes(
-            "Implementation-Title": project.name,
-            "Implementation-Version": project.version
-        )
-    }
-}
-
-tasks.jar.finalizedBy('reobfJar')
-
-// 编码配置
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
+    finalizedBy 'reobfJar'
 }
