@@ -1,0 +1,70 @@
+name: Fix Missing Files and Build Mod
+
+on: [push]
+
+jobs:
+  fix-missing-files:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    # 1. 生成 Gradle Wrapper
+    - name: Generate Gradle Wrapper
+      run: |
+        # 安装临时Gradle用于生成Wrapper
+        wget https://services.gradle.org/distributions/gradle-8.4-bin.zip
+        unzip gradle-8.4-bin.zip
+        ./gradle-8.4/bin/gradle wrapper --gradle-version=8.4 --distribution-type=bin
+        
+        # 验证生成的文件
+        ls -la gradlew gradlew.bat gradle/wrapper/
+        
+    # 2. 创建缺失的 mods.toml
+    - name: Create mods.toml
+      run: |
+        mkdir -p src/main/resources/META-INF
+        cat << EOF > src/main/resources/META-INF/mods.toml
+        modLoader="javafml"
+        loaderVersion="[47,)"
+        license="All Rights Reserved"
+        
+        [[mods]]
+        modId="bonsaitree"
+        version="1.0"
+        displayName="Bonsai Tree Mod"
+        authors="YourName"
+        description='''添加可在耕地上种植的盆景树苗种子'''
+        EOF
+        
+        # 验证文件创建
+        cat src/main/resources/META-INF/mods.toml
+    
+    # 3. 提交修复的文件
+    - name: Commit fixes
+      if: success()
+      run: |
+        git config user.email "fix-bot@github.com"
+        git config user.name "Fix Bot"
+        git add .
+        git diff-index --quiet HEAD || git commit -m "自动修复缺失文件"
+        git push
+
+  build-mod:
+    needs: fix-missing-files
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+    - name: Build mod
+      run: |
+        chmod +x gradlew
+        ./gradlew build --no-daemon
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: bonsai-mod
+        path: build/libs/*.jar
