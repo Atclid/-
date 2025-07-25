@@ -2,40 +2,32 @@ name: 自动补全与构建模组
 on:
   push:
     paths:
-      - 'bonsaitree_mod/bonsaitree_forge_mod/**'  # 监听模组目录变化
+      - 'bonsaitree_mod/bonsaitree_forge_mod/**'
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 允许提交补全的文件
+      contents: write
     
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
         
-      - name: 验证模组目录结构
+      - name: 验证模组目录
         run: |
           MOD_DIR="bonsaitree_mod/bonsaitree_forge_mod"
-          echo "检查模组目录: $MOD_DIR"
           
+          # 检查目录是否存在
           if [ ! -d "$MOD_DIR" ]; then
-            echo "错误: 模组目录不存在!"
+            echo "错误: 模组目录不存在: $MOD_DIR"
             exit 1
           fi
           
           echo "模组目录内容:"
           ls -la $MOD_DIR
           
-          if [ -f "$MOD_DIR/build.gradle" ]; then
-            echo "✅ 找到 build.gradle 文件"
-          else
-            echo "错误: 未找到 build.gradle 文件!"
-            exit 1
-          fi
-          
-          # 将模组目录路径保存到环境变量
           echo "mod_dir=$MOD_DIR" >> $GITHUB_ENV
           
       - name: 检查并补全 settings.gradle
@@ -62,12 +54,46 @@ jobs:
             echo "✅ Gradle Wrapper 已存在"
           fi
           
+      - name: 检查并修复 build.gradle
+        working-directory: ${{ env.mod_dir }}
+        run: |
+          if [ -f "build.gradle" ]; then
+            echo "检查 build.gradle 文件..."
+            
+            # 检查 plugins 块是否在第一行
+            if ! head -n 1 build.gradle | grep -q "plugins {" ; then
+              echo "🔧 修复 build.gradle：移动 plugins 块到第一行"
+              
+              # 创建临时文件
+              TEMP_FILE=$(mktemp)
+              
+              # 提取 plugins 块内容
+              awk '/^plugins *{/,/^}/' build.gradle > $TEMP_FILE
+              
+              # 提取剩余内容（移除 plugins 块）
+              awk '!/^plugins *{/,!/^}/' build.gradle > build.gradle.tmp
+              
+              # 合并：plugins 块在前，剩余内容在后
+              cat $TEMP_FILE build.gradle.tmp > build.gradle
+              
+              # 清理临时文件
+              rm $TEMP_FILE build.gradle.tmp
+              
+              echo "✅ build.gradle 修复完成"
+            else
+              echo "✅ build.gradle 结构正确"
+            fi
+          else
+            echo "错误: 未找到 build.gradle 文件"
+            exit 1
+          fi
+          
       - name: 配置 Java 环境
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: 'gradle'  # 缓存依赖，加速构建
+          cache: 'gradle'
           
       - name: 构建模组
         working-directory: ${{ env.mod_dir }}
@@ -84,6 +110,7 @@ jobs:
           git add ${{ env.mod_dir }}/gradlew
           git add ${{ env.mod_dir }}/gradlew.bat
           git add ${{ env.mod_dir }}/gradle/wrapper/
+          git add ${{ env.mod_dir }}/build.gradle  # 添加可能的修复
           
           if [[ $(git status --porcelain) ]]; then
             git commit -m "自动补全 Gradle 配置文件"
