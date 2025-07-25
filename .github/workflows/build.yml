@@ -1,0 +1,16 @@
+name: Build Forge Mod
+on: [push]  # 代码推送时自动编译
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4  # 下载代码
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with: { java-version: 17 }
+    - name: Build Mod
+      run: |
+        chmod +x gradlew
+        ./gradlew build --no-daemon  # 禁止后台进程，避免超时
+    - uses: actions/upload-artifact@v3
+      with: { name: mod, path: build/libs/*.jar }  # 打包成品
