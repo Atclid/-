@@ -1,6 +1,6 @@
 {
-  "parent": "item/generated",
+  "parent": "item/default",
   "textures": {
-    "layer0": "bonsaitree:item/bonsai_seeds"
+    "layer0": "bonsaitree:item/bonsai_seeds"  // 指向你的纹理文件
   }
 }
