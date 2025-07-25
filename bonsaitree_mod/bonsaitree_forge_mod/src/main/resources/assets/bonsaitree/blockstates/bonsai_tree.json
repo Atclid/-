@@ -1,7 +1,5 @@
 {
   "variants": {
-    "": {
-      "model": "bonsaitree:block/bonsai_tree"
-    }
+    "": { "model": "bonsaitree:block/bonsai_tree" }  // 关联方块模型
   }
 }
