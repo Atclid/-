@@ -1,4 +1,4 @@
-name: 自动补全与构建模组
+name: 构建模组
 on:
   push:
     paths:
@@ -10,124 +10,53 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
-        
+
       - name: 验证模组目录
         run: |
           MOD_DIR="bonsaitree_mod/bonsaitree_forge_mod"
-          
           if [ ! -d "$MOD_DIR" ]; then
-            echo "错误: 模组目录不存在: $MOD_DIR"
+            echo "错误：模组目录不存在"
             exit 1
           fi
-          
-          echo "模组目录内容:"
-          ls -la $MOD_DIR
-          
           echo "mod_dir=$MOD_DIR" >> $GITHUB_ENV
-          
-      - name: 检查并补全 settings.gradle
+
+      - name: 检查 plugins 块位置
         working-directory: ${{ env.mod_dir }}
         run: |
-          if [ ! -f "settings.gradle" ]; then
-            echo "rootProject.name = 'bonsaitree_forge_mod'" > settings.gradle
-            echo "✅ 创建了 settings.gradle"
-          else
-            echo "✅ settings.gradle 已存在"
+          echo "验证 plugins 块是否在第一行..."
+          if ! head -n 3 build.gradle | grep -q "plugins {" ; then
+            echo "❌ plugins 块仍不在正确位置，请手动修复 build.gradle"
+            cat build.gradle  # 输出文件内容供调试
+            exit 1
           fi
-          
-      - name: 检查并生成 Gradle Wrapper
+
+      - name: 生成 Gradle Wrapper（如果缺失）
         working-directory: ${{ env.mod_dir }}
         run: |
           if [ ! -f "gradlew" ]; then
-            echo "🔧 未找到 Gradle Wrapper，正在生成..."
-            wget -q https://services.gradle.org/distributions/gradle-8.4-bin.zip
+            wget https://services.gradle.org/distributions/gradle-8.4-bin.zip
             unzip -q gradle-8.4-bin.zip
-            ./gradle-8.4/bin/gradle wrapper --gradle-version=8.4 --distribution-type=bin
+            ./gradle-8.4/bin/gradle wrapper --gradle-version 8.4
             rm -rf gradle-8.4 gradle-8.4-bin.zip
-            echo "✅ 已生成 Gradle Wrapper"
-          else
-            echo "✅ Gradle Wrapper 已存在"
           fi
-          
-      - name: 检查并修复 build.gradle
-        working-directory: ${{ env.mod_dir }}
-        run: |
-          if [ -f "build.gradle" ]; then
-            echo "检查 build.gradle 文件结构..."
-            
-            PLUGINS_LINE=$(grep -n "^plugins *{" build.gradle | head -n1 | cut -d: -f1)
-            
-            if [ -z "$PLUGINS_LINE" ]; then
-              echo "❌ 未找到 plugins 块"
-              cat build.gradle
-              exit 1
-            elif [ "$PLUGINS_LINE" -ne 1 ]; then
-              echo "🔧 修复: 将 plugins 块移至文件开头"
-              
-              TEMP_FILE=$(mktemp)
-              awk '/^plugins *{/,/^}/' build.gradle > $TEMP_FILE
-              echo >> $TEMP_FILE
-              awk '!/^plugins *{/,!/^}/' build.gradle | grep -v '^$' > build.gradle.tmp
-              cat $TEMP_FILE build.gradle.tmp > build.gradle
-              rm $TEMP_FILE build.gradle.tmp
-              
-              echo "✅ build.gradle 修复完成"
-              
-              if ! head -n 1 build.gradle | grep -q "plugins {" ; then
-                echo "❌ 修复失败，plugins 块仍不在第一行"
-                cat build.gradle
-                exit 1
-              fi
-            else
-              echo "✅ build.gradle 结构正确"
-            fi
-            
-            echo "修复后的 build.gradle 文件内容:"
-            cat build.gradle
-          else
-            echo "错误: 未找到 build.gradle 文件"
-            exit 1
-          fi
-          
-      - name: 配置 Java 环境
+
+      - name: 配置 Java 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: 'gradle'
-          
+
       - name: 构建模组
         working-directory: ${{ env.mod_dir }}
         run: |
           chmod +x gradlew
           ./gradlew build --no-daemon
-          
-      - name: 提交补全的文件
-        if: success()
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add ${{ env.mod_dir }}/settings.gradle
-          git add ${{ env.mod_dir }}/gradlew
-          git add ${{ env.mod_dir }}/gradlew.bat
-          git add ${{ env.mod_dir }}/gradle/wrapper/
-          git add ${{ env.mod_dir }}/build.gradle
-          
-          if [[ $(git status --porcelain) ]]; then
-            git commit -m "自动补全 Gradle 配置文件"
-            git push
-            echo "✅ 已提交补全的配置文件"
-          else
-            echo "⚠️ 没有文件变更"
-          fi
-          
-      - name: 上传构建产物
+
+      - name: 上传产物
         uses: actions/upload-artifact@v4
         with:
           name: bonsaitree-mod
           path: ${{ env.mod_dir }}/build/libs/*.jar
-          if-no-files-found: error
