@@ -2,7 +2,7 @@ name: 自动补全与构建模组
 on:
   push:
     paths:
-      - 'atclid/bonsaitree_mod/**'
+      - 'bonsaitree_mod/bonsaitree_forge_mod/**'  # 监听模组目录变化
   workflow_dispatch:
 
 jobs:
@@ -14,11 +14,32 @@ jobs:
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
+        
+      - name: 验证模组目录结构
+        run: |
+          MOD_DIR="bonsaitree_mod/bonsaitree_forge_mod"
+          echo "检查模组目录: $MOD_DIR"
+          
+          if [ ! -d "$MOD_DIR" ]; then
+            echo "错误: 模组目录不存在!"
+            exit 1
+          fi
+          
+          echo "模组目录内容:"
+          ls -la $MOD_DIR
+          
+          if [ -f "$MOD_DIR/build.gradle" ]; then
+            echo "✅ 找到 build.gradle 文件"
+          else
+            echo "错误: 未找到 build.gradle 文件!"
+            exit 1
+          fi
+          
+          # 将模组目录路径保存到环境变量
+          echo "mod_dir=$MOD_DIR" >> $GITHUB_ENV
+          
       - name: 检查并补全 settings.gradle
-        working-directory: atclid/bonsaitree_mod/bonsaitree_forge_mod
+        working-directory: ${{ env.mod_dir }}
         run: |
           if [ ! -f "settings.gradle" ]; then
             echo "rootProject.name = 'bonsaitree_forge_mod'" > settings.gradle
@@ -26,9 +47,9 @@ jobs:
           else
             echo "✅ settings.gradle 已存在"
           fi
-
+          
       - name: 检查并生成 Gradle Wrapper
-        working-directory: atclid/bonsaitree_mod/bonsaitree_forge_mod
+        working-directory: ${{ env.mod_dir }}
         run: |
           if [ ! -f "gradlew" ]; then
             echo "🔧 未找到 Gradle Wrapper，正在生成..."
@@ -40,29 +61,29 @@ jobs:
           else
             echo "✅ Gradle Wrapper 已存在"
           fi
-
+          
       - name: 配置 Java 环境
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: 'gradle'  # 缓存依赖，加速构建
-
+          
       - name: 构建模组
-        working-directory: atclid/bonsaitree_mod/bonsaitree_forge_mod
+        working-directory: ${{ env.mod_dir }}
         run: |
           chmod +x gradlew
           ./gradlew build --no-daemon
-
+          
       - name: 提交补全的文件
         if: success()
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add atclid/bonsaitree_mod/bonsaitree_forge_mod/settings.gradle
-          git add atclid/bonsaitree_mod/bonsaitree_forge_mod/gradlew
-          git add atclid/bonsaitree_mod/bonsaitree_forge_mod/gradlew.bat
-          git add atclid/bonsaitree_mod/bonsaitree_forge_mod/gradle/wrapper/
+          git add ${{ env.mod_dir }}/settings.gradle
+          git add ${{ env.mod_dir }}/gradlew
+          git add ${{ env.mod_dir }}/gradlew.bat
+          git add ${{ env.mod_dir }}/gradle/wrapper/
           
           if [[ $(git status --porcelain) ]]; then
             git commit -m "自动补全 Gradle 配置文件"
@@ -71,10 +92,10 @@ jobs:
           else
             echo "⚠️ 没有文件变更"
           fi
-
+          
       - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: bonsaitree-mod
-          path: atclid/bonsaitree_mod/bonsaitree_forge_mod/build/libs/*.jar
+          path: ${{ env.mod_dir }}/build/libs/*.jar
           if-no-files-found: error
