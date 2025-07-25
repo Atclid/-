@@ -32,18 +32,29 @@ jobs:
           echo "📂 模组目录内容:"
           ls -la $MOD_DIR
 
+      # 👇 修正后的验证步骤 👇
       - name: 验证 plugins 块位置
         working-directory: ${{ env.mod_dir }}
         run: |
           echo "🔍 检查 plugins 块是否在正确位置..."
-          # 允许 pluginManagement 在 plugins 前，只要 plugins 在文件前5行内
-          if ! head -n 5 build.gradle | grep -q "plugins {" ; then
-            echo "❌ plugins 块不在文件前5行内，请检查 build.gradle"
-            echo "📄 当前 build.gradle 前5行内容:"
-            head -n 5 build.gradle
+          
+          # 查找 pluginManagement 和 plugins 块的行号
+          PLUGIN_MANAGEMENT_LINE=$(grep -n "^pluginManagement *{" build.gradle | head -n1 | cut -d: -f1)
+          PLUGINS_LINE=$(grep -n "^plugins *{" build.gradle | head -n1 | cut -d: -f1)
+          
+          # 验证逻辑
+          if [ -z "$PLUGIN_MANAGEMENT_LINE" ]; then
+            echo "❌ 未找到 pluginManagement 块"
             exit 1
+          elif [ -z "$PLUGINS_LINE" ]; then
+            echo "❌ 未找到 plugins 块"
+            exit 1
+          elif [ "$PLUGIN_MANAGEMENT_LINE" -ge "$PLUGINS_LINE" ]; then
+            echo "❌ pluginManagement 块必须在 plugins 块之前"
+            exit 1
+          else
+            echo "✅ plugins 块位置正确（在 pluginManagement 之后）"
           fi
-          echo "✅ plugins 块位置正确"
 
       - name: 生成/验证 Gradle Wrapper
         working-directory: ${{ env.mod_dir }}
