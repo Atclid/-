@@ -1,13 +1,4 @@
-// 配置插件仓库（必须在 plugins 块之前）
-pluginManagement {
-    repositories {
-        maven { url "https://maven.minecraftforge.net/" }  // Forge 插件仓库
-        gradlePluginPortal()  // 官方插件仓库
-        maven { url "https://maven.parchmentmc.org/" }  // Parchment  mappings 仓库（可选）
-    }
-}
-
-// plugins 块
+// 插件应用（build.gradle 中第一个代码块）
 plugins {
     id 'eclipse'
     id 'maven-publish'
@@ -15,12 +6,13 @@ plugins {
     id 'org.parchmentmc.librarian.forgegradle' version '1.+'
 }
 
-// 其他配置保持不变
+// Gradle Wrapper 配置
 wrapper {
     gradleVersion = "8.4"
     distributionType = Wrapper.DistributionType.ALL
 }
 
+// 项目基本信息
 version = '1.0'
 group = 'com.yourmod.bonsaitree'
 archivesBaseName = 'bonsaitree'
@@ -28,6 +20,8 @@ archivesBaseName = 'bonsaitree'
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
 println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
+
+// Minecraft 配置
 minecraft {
     mappings channel: 'parchment', version: '2023.09.03-1.20.1'
     
@@ -86,6 +80,7 @@ minecraft {
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
+// 依赖仓库
 repositories {
     maven {
         url "https://cursemaven.com"
@@ -95,10 +90,12 @@ repositories {
     }
 }
 
+// 项目依赖
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.1.0'
 }
 
+// JAR 打包配置
 jar {
     manifest {
         attributes([
@@ -115,6 +112,7 @@ jar {
 
 jar.finalizedBy('reobfJar')
 
+// 发布配置
 publishing {
     publications {
         mavenJava(MavenPublication) {
@@ -128,6 +126,7 @@ publishing {
     }
 }
 
+// 编码配置
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
