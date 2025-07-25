@@ -9,11 +9,13 @@ on:
 jobs:
   unzip-and-commit:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # 授予写入权限
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # 获取完整历史，允许提交
 
       - name: Install unzip
         run: sudo apt-get update && sudo apt-get install -y unzip
@@ -36,24 +38,21 @@ jobs:
           unzip bonsaitree_forge_mod.zip -d bonsaitree_mod/
           ls -R bonsaitree_mod
 
-      - name: Commit unzipped files
+      - name: Commit and push changes
         if: env.file_exists == 'true'
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
+          
+          # 检查是否有文件变更
           if [[ $(git status --porcelain) ]]; then
             git add bonsaitree_mod/
             git commit -m "自动解压模组文件"
-            echo "有变更，已提交"
+            
+            # 使用内置 token 直接推送
+            git push https://github.com/${{ github.repository }}.git HEAD:main
+            echo "✅ 推送成功"
           else
-            echo "无变更，跳过"
+            echo "没有文件变更，跳过提交"
             exit 0
           fi
-
-      - name: Push changes
-        if: env.file_exists == 'true'
-        uses: ad-m/github-push-action@v0.6.0
-        with:
-          github_token: ${{ secrets.PAT_TOKEN }}  # 确保缩进正确
-          branch: main
-          force: false
