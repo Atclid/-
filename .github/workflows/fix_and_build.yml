@@ -1,4 +1,4 @@
-name: 构建模组
+name: 构建并打包 Minecraft 模组
 on:
   push:
     paths:
@@ -6,57 +6,93 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-mod:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: 验证模组目录
         run: |
           MOD_DIR="bonsaitree_mod/bonsaitree_forge_mod"
           if [ ! -d "$MOD_DIR" ]; then
-            echo "错误：模组目录不存在"
+            echo "❌ 模组目录不存在: $MOD_DIR"
+            exit 1
+          fi
+          if [ ! -f "$MOD_DIR/build.gradle" ]; then
+            echo "❌ 缺少 build.gradle 文件"
             exit 1
           fi
           echo "mod_dir=$MOD_DIR" >> $GITHUB_ENV
+          echo "📂 模组目录内容:"
+          ls -la $MOD_DIR
 
-      - name: 检查 plugins 块位置
+      - name: 验证 plugins 块位置
         working-directory: ${{ env.mod_dir }}
         run: |
-          echo "验证 plugins 块是否在第一行..."
-          if ! head -n 3 build.gradle | grep -q "plugins {" ; then
-            echo "❌ plugins 块仍不在正确位置，请手动修复 build.gradle"
-            cat build.gradle  # 输出文件内容供调试
+          echo "🔍 检查 plugins 块是否在正确位置..."
+          # 允许 pluginManagement 在 plugins 前，只要 plugins 在文件前5行内
+          if ! head -n 5 build.gradle | grep -q "plugins {" ; then
+            echo "❌ plugins 块不在文件前5行内，请检查 build.gradle"
+            echo "📄 当前 build.gradle 前5行内容:"
+            head -n 5 build.gradle
             exit 1
           fi
+          echo "✅ plugins 块位置正确"
 
-      - name: 生成 Gradle Wrapper（如果缺失）
+      - name: 生成/验证 Gradle Wrapper
         working-directory: ${{ env.mod_dir }}
         run: |
           if [ ! -f "gradlew" ]; then
-            wget https://services.gradle.org/distributions/gradle-8.4-bin.zip
+            echo "⚠️ 生成 Gradle Wrapper..."
+            wget -q https://services.gradle.org/distributions/gradle-8.4-bin.zip
             unzip -q gradle-8.4-bin.zip
-            ./gradle-8.4/bin/gradle wrapper --gradle-version 8.4
+            ./gradle-8.4/bin/gradle wrapper --gradle-version=8.4
             rm -rf gradle-8.4 gradle-8.4-bin.zip
+            chmod +x gradlew
+          else
+            echo "✅ Gradle Wrapper 已存在"
           fi
 
-      - name: 配置 Java 17
+      - name: 配置 JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'
 
       - name: 构建模组
         working-directory: ${{ env.mod_dir }}
         run: |
-          chmod +x gradlew
+          echo "🚀 开始构建..."
           ./gradlew build --no-daemon
+          echo "→ 构建产物:"
+          ls -la build/libs/
 
-      - name: 上传产物
+      - name: 提交 Gradle Wrapper
+        if: success()
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add ${{ env.mod_dir }}/gradlew
+          git add ${{ env.mod_dir }}/gradlew.bat
+          git add ${{ env.mod_dir }}/gradle/wrapper/
+          if [[ $(git status --porcelain) ]]; then
+            git commit -m "自动生成 Gradle Wrapper"
+            git push
+            echo "✅ 已提交 Gradle Wrapper 文件"
+          else
+            echo "⚠️ 无新文件需要提交"
+          fi
+
+      - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
           name: bonsaitree-mod
           path: ${{ env.mod_dir }}/build/libs/*.jar
+          if-no-files-found: error
