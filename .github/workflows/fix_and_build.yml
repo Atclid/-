@@ -16,10 +16,11 @@ jobs:
       # 1. 生成 Gradle Wrapper
       - name: Generate Gradle Wrapper
         run: |
-          # 安装临时Gradle用于生成Wrapper
-          wget https://services.gradle.org/distributions/gradle-8.4-bin.zip
-          unzip gradle-8.4-bin.zip
-          ./gradle-8.4/bin/gradle wrapper --gradle-version=8.4 --distribution-type=bin
+          echo "开始生成Gradle Wrapper..."
+          wget https://services.gradle.org/distributions/gradle-8.4-bin.zip || { echo "下载Gradle失败"; exit 1; }
+          unzip -q gradle-8.4-bin.zip || { echo "解压Gradle失败"; exit 1; }
+          chmod +x ./gradle-8.4/bin/gradle
+          ./gradle-8.4/bin/gradle wrapper --gradle-version=8.4 --distribution-type=bin || { echo "生成Wrapper失败"; exit 1; }
           
           # 验证生成的文件
           echo "生成的Gradle Wrapper文件:"
@@ -28,6 +29,7 @@ jobs:
       # 2. 创建缺失的 mods.toml
       - name: Create mods.toml
         run: |
+          echo "创建mods.toml文件..."
           mkdir -p src/main/resources/META-INF
           cat << EOF > src/main/resources/META-INF/mods.toml
           modLoader="javafml"
@@ -50,6 +52,7 @@ jobs:
       - name: Commit fixes
         if: success()
         run: |
+          echo "检查是否需要提交修复..."
           git config user.email "fix-bot@github.com"
           git config user.name "Fix Bot"
           
@@ -58,8 +61,13 @@ jobs:
             git add .
             git commit -m "自动修复缺失文件"
             
-            # 使用内置token推送
-            git push https://github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}
+            # 使用更健壮的推送命令
+            echo "尝试推送修改..."
+            git push https://github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }} || {
+              echo "推送失败，尝试拉取最新代码并重新提交"
+              git pull --rebase https://github.com/${{ github.repository }}.git ${{ github.ref_name }}
+              git push https://github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}
+            }
             echo "✅ 修复文件已提交并推送"
           else
             echo "没有文件变更，跳过提交"
@@ -80,8 +88,17 @@ jobs:
           
       - name: Build mod
         run: |
+          echo "开始构建项目..."
           chmod +x gradlew
-          ./gradlew build --no-daemon
+          ./gradlew build --no-daemon || {
+            echo "构建失败，输出详细错误信息:"
+            ./gradlew build --stacktrace --info --no-daemon
+            exit 1
+          }
+          
+          # 验证构建结果
+          echo "构建结果:"
+          ls -la build/libs/
           
       - name: Upload artifact
         uses: actions/upload-artifact@v3
