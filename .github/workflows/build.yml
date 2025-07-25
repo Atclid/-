@@ -1,16 +1,27 @@
 name: Build Forge Mod
-on: [push]  # 代码推送时自动编译
+on: [push]  # 代码变动时自动编译
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4  # 下载代码
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
     - name: Set up JDK 17
       uses: actions/setup-java@v3
-      with: { java-version: 17 }
-    - name: Build Mod
-      run: |
-        chmod +x gradlew
-        ./gradlew build --no-daemon  # 禁止后台进程，避免超时
-    - uses: actions/upload-artifact@v3
-      with: { name: mod, path: build/libs/*.jar }  # 打包成品
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        
+    - name: Grant execute permission
+      run: chmod +x gradlew
+      
+    - name: Build mod
+      run: ./gradlew build --no-daemon
+      
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: bonsai-mod
+        path: build/libs/*.jar
