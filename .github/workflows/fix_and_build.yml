@@ -57,7 +57,7 @@ jobs:
         working-directory: ${{ env.mod_dir }}
         run: |
           if [ -f "build.gradle" ]; then
-            echo "检查 build.gradle 文件..."
+            echo "检查 build.gradle 文件结构..."
             
             PLUGINS_LINE=$(grep -n "^plugins *{" build.gradle | head -n1 | cut -d: -f1)
             
@@ -66,28 +66,32 @@ jobs:
               cat build.gradle
               exit 1
             elif [ "$PLUGINS_LINE" -ne 1 ]; then
-              echo "🔧 修复: 移动 plugins 块到第1行"
+              echo "🔧 修复: 将 plugins 块移至文件开头"
               
               TEMP_FILE=$(mktemp)
-              awk -v start="$PLUGINS_LINE" '/^plugins *{/,/^}/ {print}' build.gradle > $TEMP_FILE
-              awk -v start="$PLUGINS_LINE" 'NR < start || /^}/ {f=1} f && !/^}/ {print}' build.gradle > build.gradle.tmp
+              awk '/^plugins *{/,/^}/' build.gradle > $TEMP_FILE
+              echo >> $TEMP_FILE
+              awk '!/^plugins *{/,!/^}/' build.gradle | grep -v '^$' > build.gradle.tmp
               cat $TEMP_FILE build.gradle.tmp > build.gradle
               rm $TEMP_FILE build.gradle.tmp
               
               echo "✅ build.gradle 修复完成"
+              
+              if ! head -n 1 build.gradle | grep -q "plugins {" ; then
+                echo "❌ 修复失败，plugins 块仍不在第一行"
+                cat build.gradle
+                exit 1
+              fi
             else
               echo "✅ build.gradle 结构正确"
             fi
+            
+            echo "修复后的 build.gradle 文件内容:"
+            cat build.gradle
           else
             echo "错误: 未找到 build.gradle 文件"
             exit 1
           fi
-          
-      - name: 显示修复后的 build.gradle
-        working-directory: ${{ env.mod_dir }}
-        run: |
-          echo "最终 build.gradle 内容:"
-          cat build.gradle
           
       - name: 配置 Java 环境
         uses: actions/setup-java@v3
