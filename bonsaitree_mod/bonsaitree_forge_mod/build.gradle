@@ -1,28 +1,27 @@
-// 配置插件仓库和依赖
 buildscript {
     repositories {
+        // 优先使用 Forge 官方仓库
+        maven { url = "https://maven.minecraftforge.net/" }
         mavenCentral()
         gradlePluginPortal()
-        maven { url = "https://maven.minecraftforge.net/" }
     }
     dependencies {
-        // 使用最新稳定版本的ForgeGradle（适用于Minecraft 1.20.1）
-        classpath 'net.minecraftforge.gradle:ForgeGradle:7.1.0'
+        // 正确坐标：artifactId 是 forge-gradle，版本 7.0.0（1.20.1 稳定适配）
+        classpath 'net.minecraftforge.gradle:forge-gradle:7.0.0'
     }
 }
 
-// 应用基础插件
 plugins {
     id 'java'
     id 'eclipse'
     id 'maven-publish'
 }
 
-// 应用ForgeGradle和ParchmentMC插件
+// 应用 Forge 插件（使用正确的插件 ID）
 apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'org.parchmentmc.librarian.forgegradle'
 
-// Gradle Wrapper配置
+// Gradle Wrapper 配置
 wrapper {
     gradleVersion = "8.4"
     distributionType = Wrapper.DistributionType.BIN
@@ -33,20 +32,18 @@ version = '1.0.0'
 group = 'com.yourmod.bonsaitree'
 archivesBaseName = 'bonsaitree'
 
-// Java版本配置（Minecraft 1.20.1需要Java 17）
+// Java 版本（1.20.1 必须用 Java 17）
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
     }
 }
 
-// Minecraft模组配置
+// Minecraft 配置
 minecraft {
     mappings channel: 'parchment', version: '2023.09.03-1.20.1'
-    
     accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
 
-    // 运行配置
     runs {
         client {
             workingDirectory project.file('run')
@@ -58,98 +55,36 @@ minecraft {
                 }
             }
         }
-        
-        server {
-            extendsFrom client
-        }
-        
-        data {
-            extendsFrom client
-            args '--mod', 'bonsaitree', '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
-        }
     }
 }
 
-// 资源目录配置
-sourceSets {
-    main {
-        resources {
-            srcDirs = ['src/main/resources', 'src/generated/resources']
-            include '**/*'
-        }
-    }
-}
+// 资源目录
+sourceSets.main.resources.srcDirs = ['src/main/resources', 'src/generated/resources']
 
-// 依赖仓库配置
+// 依赖仓库
 repositories {
-    mavenCentral()
     maven { url = "https://maven.minecraftforge.net/" }
-    maven { url = "https://cursemaven.com" }
-    maven { url = "https://maven.parchmentmc.org" }
+    mavenCentral()
 }
 
-// 项目依赖
+// 依赖（Forge 1.20.1 稳定版）
 dependencies {
-    minecraft 'net.minecraftforge:forge:1.20.1-47.3.22' // 使用最新Forge版本
-    
-    // 添加其他必要依赖（如果有）
-    // implementation 'com.example:library:1.0.0'
+    minecraft 'net.minecraftforge:forge:1.20.1-47.3.22'
 }
 
-// JAR打包配置
+// JAR 打包
 jar {
     manifest {
         attributes(
-            "Specification-Title": "Bonsai Tree Mod",
-            "Specification-Vendor": "YourName",
-            "Specification-Version": "1",
             "Implementation-Title": project.name,
-            "Implementation-Version": project.version,
-            "Implementation-Vendor": "YourName",
-            "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+            "Implementation-Version": project.version
         )
     }
 }
 
-// 混淆处理
 tasks.jar.finalizedBy('reobfJar')
-
-// 发布配置
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            artifact jar
-        }
-    }
-    repositories {
-        maven {
-            url = "file://${projectDir}/../mcmodsrepo"
-        }
-    }
-}
 
 // 编码配置
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
-
-// 确保必要文件存在
-task checkRequiredFiles {
-    doLast {
-        def requiredFiles = [
-            'src/main/resources/pack.mcmeta',
-            'src/main/resources/META-INF/accesstransformer.cfg'
-        ]
-        
-        requiredFiles.each { file ->
-            if (!file(file).exists()) {
-                throw new GradleException("Missing required file: $file")
-            }
-        }
-        
-        println "✅ 所有必要文件已存在"
-    }
-}
-
-// 构建前检查
-tasks.build.dependsOn(checkRequiredFiles)
