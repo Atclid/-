@@ -8,18 +8,19 @@ buildscript {
     }
 }
 
+// 应用 BasePlugin 以启用 archivesBaseName（解决属性缺失问题）
 plugins {
     id 'java'
     id 'eclipse'
+    id 'base'  // 关键：添加 BasePlugin，提供 archivesBaseName 支持
 }
 
 apply plugin: 'net.minecraftforge.gradle'
 
 version = '1.0.0'
 group = 'com.yourmod.bonsaitree'
-
-// 修复 Gradle 8+ 警告：替换 archivesBaseName 为 archivesName
-archivesName.set('bonsaitree')
+// 暂时使用 archivesBaseName（Gradle 7.3 兼容，允许警告）
+archivesBaseName = 'bonsaitree'
 
 java {
     toolchain {
@@ -27,6 +28,7 @@ java {
     }
 }
 
+// 确保 minecraft 配置块被正确识别
 minecraft {
     mappings channel: 'srg', version: '1.20.1'
     accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
@@ -47,6 +49,7 @@ repositories {
     maven { url = "https://maven.minecraftforge.net/" }
 }
 
+// 明确声明 minecraft 依赖（解决 Missing 'minecraft' dependency 错误）
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.1.0'
 }
