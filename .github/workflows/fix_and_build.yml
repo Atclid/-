@@ -1,116 +1,52 @@
-name: 构建 Minecraft 模组
+name: Build Bonsai Tree Mod
 on:
   push:
-    paths:
-      - 'bonsaitree_mod/bonsaitree_forge_mod/**'  # 仅监听模组目录变更
-  workflow_dispatch:  # 支持手动触发
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 允许提交配置文件
+      contents: write
 
     steps:
-      - name: 检出代码
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 拉取完整历史，支持提交
+          fetch-depth: 0
 
-      - name: 验证模组目录存在
-        run: |
-          MOD_DIR="bonsaitree_mod/bonsaitree_forge_mod"
-          if [ ! -d "$MOD_DIR" ]; then
-            echo "❌ 模组目录不存在: $MOD_DIR"
-            exit 1
-          fi
-          echo "mod_dir=$MOD_DIR" >> $GITHUB_ENV
-          echo "📂 模组目录内容:"
-          ls -la $MOD_DIR
-
-      - name: 配置 JDK 17（必须在Gradle之前）
-        uses: actions/setup-java@v4  # 升级到v4，更稳定
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: 'gradle'  # 启用Gradle缓存，加速构建
+          cache: 'gradle'
 
-      - name: 缓存 Gradle 依赖
+      - name: Cache Gradle dependencies
         uses: actions/cache@v3
         with:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle', '**/gradle-wrapper.properties') }}
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: 生成/验证 Gradle Wrapper（依赖Java）
-        working-directory: ${{ env.mod_dir }}
+      - name: Validate Gradle wrapper
+        working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          if [ ! -f "gradlew" ]; then
-            echo "⚠️ 生成 Gradle Wrapper 8.4..."
-            # 直接使用setup-java提供的Gradle环境生成Wrapper
-            gradle wrapper --gradle-version=8.4 --distribution-type=bin
-            chmod +x gradlew  # 确保可执行权限
-          else
-            echo "✅ Gradle Wrapper 已存在"
-          fi
-          # 验证核心文件
-          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            echo "❌ 缺失 gradle-wrapper.jar，重新下载..."
-            rm -rf gradle/ gradlew
-            gradle wrapper --gradle-version=8.4 --distribution-type=bin
-          fi
+          ./gradlew wrapper --gradle-version=8.4 --distribution-type=bin
+          chmod +x gradlew
 
-      - name: 补全 settings.gradle（确保仓库配置）
-        working-directory: ${{ env.mod_dir }}
+      - name: Build with Gradle
+        working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          if [ ! -f "settings.gradle" ]; then
-            echo "⚠️ 生成 settings.gradle"
-            cat << EOF > settings.gradle
-          pluginManagement {
-              repositories {
-                  maven { url "https://maven.minecraftforge.net/" }
-                  maven { url "https://cursemaven.com" }
-                  maven { url "https://maven.parchmentmc.org/" }
-                  mavenCentral()  # 关键：添加中央仓库
-                  gradlePluginPortal()
-              }
-          }
-          rootProject.name = "bonsaitree_forge_mod"
-          EOF
-          else
-            echo "✅ settings.gradle 已存在"
-          fi
+          ./gradlew build --stacktrace --no-daemon
 
-      - name: 构建模组
-        working-directory: ${{ env.mod_dir }}
-        run: |
-          echo "🚀 开始构建..."
-          ./gradlew build --no-daemon --stacktrace  # 增加堆栈跟踪，便于调试
-          echo "📦 构建产物:"
-          ls -la build/libs/
-
-      - name: 提交补全的配置文件
-        if: success()
-        run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
-          git add ${{ env.mod_dir }}/settings.gradle
-          git add ${{ env.mod_dir }}/gradlew
-          git add ${{ env.mod_dir }}/gradlew.bat
-          git add ${{ env.mod_dir }}/gradle/wrapper/
-          if [[ $(git status --porcelain) ]]; then
-            git commit -m "自动补全Gradle配置"
-            git push
-          else
-            echo "⚠️ 无配置文件变更"
-          fi
-
-      - name: 上传构建产物
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: bonsaitree-mod
-          path: ${{ env.mod_dir }}/build/libs/*.jar
-          if-no-files-found: error  # 产物缺失时直接报错
+          path: bonsaitree_mod/bonsaitree_forge_mod/build/libs/*.jar
