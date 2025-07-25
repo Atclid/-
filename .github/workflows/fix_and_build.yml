@@ -2,34 +2,44 @@ name: 自动补全与构建模组
 on:
   push:
     paths:
-      - 'atclid/bonsaitree_mod/bonsaitree_forge_mod/**'  # 监听模组目录变化
-  workflow_dispatch:  # 手动触发入口
+      - '**/*.zip'  # 监听任何ZIP文件变化
+  workflow_dispatch:
 
 jobs:
   setup-and-build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 允许提交代码到仓库
+      contents: write
     steps:
-      # 1. 拉取仓库代码
       - name: 检出代码
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 拉取完整提交历史，支持 git 提交
+          fetch-depth: 0
 
-      # 2. 补全 Gradle 核心配置（settings.gradle）
+      # 1. 自动检测模组目录（查找包含build.gradle的目录）
+      - name: 查找模组目录
+        id: find_mod_dir
+        run: |
+          MOD_DIR=$(find . -name "build.gradle" -exec dirname {} \; | head -n 1)
+          if [ -z "$MOD_DIR" ]; then
+            echo "未找到Gradle项目！请确保仓库中存在build.gradle文件。"
+            exit 1
+          fi
+          echo "模组目录: $MOD_DIR"
+          echo "mod_dir=$MOD_DIR" >> $GITHUB_ENV
+
+      # 2. 补全Gradle配置
       - name: 补全 settings.gradle
         run: |
-          MOD_DIR="atclid/bonsaitree_mod/bonsaitree_forge_mod"
-          echo "rootProject.name = 'bonsaitree_forge_mod'" > ${MOD_DIR}/settings.gradle
+          mkdir -p ${{ env.mod_dir }}
+          echo "rootProject.name = 'bonsaitree_forge_mod'" > ${{ env.mod_dir }}/settings.gradle
           echo "✅ 已创建 settings.gradle"
 
-      # 3. 补全 Forge 模组描述文件（mods.toml）
+      # 3. 补全mods.toml
       - name: 补全 mods.toml
         run: |
-          MOD_DIR="atclid/bonsaitree_mod/bonsaitree_forge_mod"
-          mkdir -p ${MOD_DIR}/src/main/resources/META-INF
-          cat << EOF > ${MOD_DIR}/src/main/resources/META-INF/mods.toml
+          mkdir -p ${{ env.mod_dir }}/src/main/resources/META-INF
+          cat << EOF > ${{ env.mod_dir }}/src/main/resources/META-INF/mods.toml
           modLoader="javafml"
           loaderVersion="[47,)"
           license="All Rights Reserved"
@@ -43,43 +53,41 @@ jobs:
           EOF
           echo "✅ 已创建 mods.toml"
 
-      # 4. 配置 Java 环境（Forge 模组编译依赖 Java 17）
+      # 4. 配置Java环境
       - name: 配置 JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 5. 编译模组（调用 Gradle 构建）
+      # 5. 编译模组
       - name: 构建模组
+        working-directory: ${{ env.mod_dir }}
         run: |
-          MOD_DIR="atclid/bonsaitree_mod/bonsaitree_forge_mod"
-          cd ${MOD_DIR}
-          chmod +x gradlew  # 赋予 Gradle  wrapper 执行权限
-          ./gradlew build --no-daemon  # 编译模组，输出 JAR 到 build/libs
+          chmod +x gradlew
+          ./gradlew build --no-daemon
           echo "✅ 模组构建完成"
 
-      # 6. 提交补全的文件到仓库
+      # 6. 提交变更
       - name: 提交代码变更
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add atclid/bonsaitree_mod/bonsaitree_forge_mod/settings.gradle
-          git add atclid/bonsaitree_mod/bonsaitree_forge_mod/src/main/resources/META-INF/mods.toml
+          git add ${{ env.mod_dir }}/settings.gradle
+          git add ${{ env.mod_dir }}/src/main/resources/META-INF/mods.toml
           
-          # 检查是否有变更需要提交
           if [[ $(git status --porcelain) ]]; then
             git commit -m "自动补全模组基础配置文件"
-            git push  # 推送到当前分支（如 main）
+            git push
             echo "✅ 配置文件已提交"
           else
             echo "⚠️ 无文件变更，跳过提交"
           fi
 
-      # 7. 上传构建好的模组 JAR 作为 Artifact
+      # 7. 上传模组包
       - name: 上传模组包
-        uses: actions/upload-artifact@v4  # 注意用 v4 版本避免弃用警告
+        uses: actions/upload-artifact@v4
         with:
           name: bonsaitree-mod-jar
-          path: atclid/bonsaitree_mod/bonsaitree_forge_mod/build/libs/*.jar
-          if-no-files-found: error  # 无文件时报错，避免静默失败
+          path: ${{ env.mod_dir }}/build/libs/*.jar
+          if-no-files-found: error
