@@ -62,6 +62,6 @@ jobs:
         if: env.file_exists == 'true'
         uses: ad-m/github-push-action@v0.6.0  # 使用固定版本
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.PAT_TOKEN }}  # 使用你创建的安全PAT令牌
           branch: main
           force: false
