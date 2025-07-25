@@ -1,0 +1,6 @@
+{
+    "pack": {
+        "pack_format": 12,  // 根据你的 Minecraft 版本设置对应的格式版本，1.20.1 版本一般是 12
+        "description": "BonsaiTree Mod Resource Pack"  // 资源包的描述信息，可自定义
+    }
+}
