@@ -13,24 +13,23 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: 'gradle'
 
-      - name: 清除旧缓存（关键）
+      - name: 清除旧缓存
         run: rm -rf ~/.gradle/caches/
 
-      - name: 生成 Gradle Wrapper（7.3 版本，与 5.1.3 兼容）
+      - name: 生成 Gradle Wrapper（关键：指定 7.3 版本并验证）
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
+          # 强制使用系统 Gradle 7.3 生成 wrapper
           gradle wrapper --gradle-version=7.3 --distribution-type=bin
           chmod +x gradlew
+          
+          # 验证 wrapper 版本
+          echo "验证 Gradle 版本:"
+          ./gradlew --version
 
-      - name: 构建（带详细日志）
+      - name: 构建（关键：添加 --no-daemon 参数）
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          ./gradlew build --info --stacktrace --no-daemon
-
-      - name: 上传产物
-        uses: actions/upload-artifact@v4
-        with:
-          name: 模组产物
-          path: bonsaitree_mod/bonsaitree_forge_mod/build/libs/*.jar
+          # 使用生成的 wrapper 构建，确保使用 7.3 版本
+          ./gradlew build --stacktrace --no-daemon --warning-mode all
