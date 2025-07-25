@@ -20,6 +20,9 @@ jobs:
         # 解压ZIP文件
         unzip bonsaitree_forge_mod.zip -d bonsaitree_mod/
         
+        # 删除原始ZIP文件（可选）
+        rm bonsaitree_forge_mod.zip
+        
         # 列出解压内容验证
         ls -R bonsaitree_mod
         
