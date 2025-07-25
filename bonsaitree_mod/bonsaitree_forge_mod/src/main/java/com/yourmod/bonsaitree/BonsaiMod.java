@@ -12,9 +12,8 @@ public class BonsaiMod {
 
     public BonsaiMod() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
-        
-        // 注册物品和方块
-        ModItems.ITEMS.register(modEventBus);
+        // 注册方块和物品
         ModBlocks.BLOCKS.register(modEventBus);
+        ModItems.ITEMS.register(modEventBus);
     }
 }
