@@ -1,11 +1,12 @@
 buildscript {
     repositories {
-        // 仅保留 Forge 官方仓库，移除其他可能干扰的仓库
+        // 唯一有效的 Forge 官方仓库
         maven { url = "https://maven.minecraftforge.net/" }
+        mavenCentral()
     }
     dependencies {
-        // 使用经过验证的 ForgeGradle 6.2.0（适配 1.20.1）
-        classpath 'net.minecraftforge.gradle:ForgeGradle:6.2.0'
+        // 6.0.14 是 6.x 系列的稳定版，官方仓库中存在
+        classpath 'net.minecraftforge.gradle:ForgeGradle:6.0.14'
     }
 }
 
@@ -19,6 +20,7 @@ apply plugin: 'org.parchmentmc.librarian.forgegradle'
 
 version = '1.0.0'
 group = 'com.yourmod.bonsaitree'
+archivesBaseName = 'bonsaitree'
 
 java {
     toolchain {
@@ -47,7 +49,6 @@ repositories {
 }
 
 dependencies {
-    // 使用与 ForgeGradle 6.2.0 兼容的 Forge 版本
     minecraft 'net.minecraftforge:forge:1.20.1-47.1.0'
 }
 
