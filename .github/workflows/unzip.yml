@@ -11,8 +11,25 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-      
+      with:
+        fetch-depth: 0  # 获取完整历史，允许提交
+
+    - name: Install unzip
+      run: sudo apt-get update && sudo apt-get install -y unzip
+
+    - name: Check if zip file exists
+      id: check_file
+      run: |
+        if [ -f "bonsaitree_forge_mod.zip" ]; then
+          echo "file_exists=true" >> $GITHUB_ENV
+        else
+          echo "错误：未找到bonsaitree_forge_mod.zip文件"
+          echo "file_exists=false" >> $GITHUB_ENV
+          exit 1
+        fi
+
     - name: Unzip mod package
+      if: env.file_exists == 'true'
       run: |
         # 创建解压目录
         mkdir -p bonsaitree_mod
@@ -20,21 +37,30 @@ jobs:
         # 解压ZIP文件
         unzip bonsaitree_forge_mod.zip -d bonsaitree_mod/
         
-        # 删除原始ZIP文件（可选）
-        rm bonsaitree_forge_mod.zip
-        
         # 列出解压内容验证
+        echo "解压后的内容："
         ls -R bonsaitree_mod
-        
+
     - name: Commit unzipped files
+      if: env.file_exists == 'true'
       run: |
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
-        git add .
-        git commit -m "自动解压模组文件 [skip ci]" || echo "没有变化，无需提交"
         
+        # 检查是否有文件变更
+        if [[ $(git status --porcelain) ]]; then
+          git add bonsaitree_mod/  # 只添加解压目录，避免意外提交其他文件
+          git commit -m "自动解压模组文件"
+          echo "有文件变更，已提交！"
+        else
+          echo "没有文件变更，跳过提交"
+          exit 0
+        fi
+
     - name: Push changes
-      uses: ad-m/github-push-action@master
+      if: env.file_exists == 'true'
+      uses: ad-m/github-push-action@v0.6.0  # 使用固定版本
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         branch: main
+        force: false
