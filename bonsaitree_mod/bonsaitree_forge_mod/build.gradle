@@ -1,11 +1,4 @@
-// 应用基础插件
-plugins {
-    id 'java'
-    id 'eclipse'
-    id 'maven-publish'
-}
-
-// 配置插件仓库（关键：在使用插件前声明仓库）
+// 配置插件仓库（关键：必须放在 plugins 块之前）
 buildscript {
     repositories {
         gradlePluginPortal()
@@ -13,12 +6,18 @@ buildscript {
         maven { url = "https://maven.parchmentmc.org" }
     }
     dependencies {
-        // 指定 ForgeGradle 版本
         classpath 'net.minecraftforge.gradle:ForgeGradle:7.2.0'
     }
 }
 
-// 应用 ForgeGradle 插件（使用旧语法确保兼容性）
+// 应用基础插件
+plugins {
+    id 'java'
+    id 'eclipse'
+    id 'maven-publish'
+}
+
+// 应用 ForgeGradle 插件
 apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'org.parchmentmc.librarian.forgegradle'
 
