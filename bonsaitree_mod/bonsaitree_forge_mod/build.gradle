@@ -1,11 +1,15 @@
-// 配置插件仓库（关键：必须放在 plugins 块之前）
+// 配置插件仓库（关键：添加 mavenCentral() 和 Forge 仓库）
 buildscript {
     repositories {
+        mavenCentral()  // 添加 Maven Central 作为主要仓库
         gradlePluginPortal()
         maven { url = "https://maven.minecraftforge.net/" }
         maven { url = "https://maven.parchmentmc.org" }
+        // 添加阿里云镜像作为备用（可选）
+        maven { url = "https://maven.aliyun.com/repository/central" }
     }
     dependencies {
+        // 使用正确的 ForgeGradle 7.x 依赖路径
         classpath 'net.minecraftforge.gradle:ForgeGradle:7.2.0'
     }
 }
@@ -91,12 +95,14 @@ sourceSets {
     }
 }
 
-// 依赖仓库
+// 依赖仓库（添加镜像和备用仓库）
 repositories {
     mavenCentral()
     maven { url = "https://maven.minecraftforge.net/" }
     maven { url = "https://cursemaven.com" }
     maven { url = "https://maven.parchmentmc.org" }
+    // 添加阿里云镜像（可选）
+    maven { url = "https://maven.aliyun.com/repository/central" }
 }
 
 // 项目依赖
