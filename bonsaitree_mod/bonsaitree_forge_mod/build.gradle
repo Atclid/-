@@ -1,4 +1,4 @@
-// 插件应用（build.gradle 中第一个代码块）
+// 插件应用（必须是 build.gradle 的第一个代码块）
 plugins {
     id 'eclipse'
     id 'maven-publish'
@@ -17,16 +17,19 @@ version = '1.0'
 group = 'com.yourmod.bonsaitree'
 archivesBaseName = 'bonsaitree'
 
+// Java 版本配置（Minecraft 1.20.1 需要 Java 17）
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
+// 打印系统信息（调试用）
 println "Java: ${System.getProperty 'java.version'}, JVM: ${System.getProperty 'java.vm.version'} (${System.getProperty 'java.vendor'}), Arch: ${System.getProperty 'os.arch'}"
 
-// Minecraft 配置
+// Minecraft 模组配置
 minecraft {
     mappings channel: 'parchment', version: '2023.09.03-1.20.1'
     
     accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
 
+    // 运行配置（客户端、服务器等）
     runs {
         client {
             workingDirectory project.file('run')
@@ -78,6 +81,7 @@ minecraft {
     }
 }
 
+// 资源目录配置
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 // 依赖仓库
@@ -110,6 +114,7 @@ jar {
     }
 }
 
+// 混淆处理（Forge 必需）
 jar.finalizedBy('reobfJar')
 
 // 发布配置
