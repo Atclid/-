@@ -1,0 +1,11 @@
+// 插件仓库配置（必须在 settings.gradle 中）
+pluginManagement {
+    repositories {
+        maven { url "https://maven.minecraftforge.net/" }  // Forge 插件仓库
+        gradlePluginPortal()  // 官方 Gradle 插件仓库
+        maven { url "https://maven.parchmentmc.org/" }  // Parchment 映射仓库
+    }
+}
+
+// 项目名称（Gradle 必需）
+rootProject.name = "bonsaitree_forge_mod"
