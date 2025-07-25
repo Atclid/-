@@ -1,5 +1,5 @@
 name: Build Bonsai Mod
-on: [push, pull_request, workflow_dispatch]
+on: [push, workflow_dispatch]
 
 jobs:
   build:
@@ -15,17 +15,33 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
       - name: Generate Gradle Wrapper
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          # 直接用系统 Gradle 生成 Wrapper（避免依赖项目内文件）
-          gradle wrapper --gradle-version=8.4 --distribution-type=bin
+          # 使用稳定的 Gradle 7.6 版本
+          gradle wrapper --gradle-version=7.6 --distribution-type=bin
           chmod +x gradlew
 
-      - name: Build with Gradle
+      - name: Build with Gradle (离线模式)
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          ./gradlew build --stacktrace --no-daemon
+          # 先尝试离线构建，使用缓存的依赖
+          ./gradlew build --offline --stacktrace --no-daemon || {
+            # 离线失败时，清除缓存并重新下载
+            echo "离线构建失败，清除缓存并重新下载依赖..."
+            rm -rf ~/.gradle/caches/
+            ./gradlew build --stacktrace --no-daemon
+          }
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
