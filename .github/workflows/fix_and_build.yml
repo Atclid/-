@@ -2,22 +2,22 @@ name: 构建 Minecraft 模组
 on:
   push:
     paths:
-      - 'bonsaitree_mod/bonsaitree_forge_mod/**'
-  workflow_dispatch:  # 保留手动触发按钮，沿用成功版本的简洁配置
+      - 'bonsaitree_mod/bonsaitree_forge_mod/**'  # 仅监听模组目录变更
+  workflow_dispatch:  # 支持手动触发
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write  # 允许提交配置文件
 
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 拉取完整历史，确保提交功能正常
+          fetch-depth: 0  # 拉取完整历史，支持提交
 
-      - name: 验证模组目录
+      - name: 验证模组目录存在
         run: |
           MOD_DIR="bonsaitree_mod/bonsaitree_forge_mod"
           if [ ! -d "$MOD_DIR" ]; then
@@ -26,9 +26,44 @@ jobs:
           fi
           echo "mod_dir=$MOD_DIR" >> $GITHUB_ENV
           echo "📂 模组目录内容:"
-          ls -la $MOD_DIR  # 输出目录内容，便于调试
+          ls -la $MOD_DIR
 
-      - name: 检查并补全 settings.gradle
+      - name: 配置 JDK 17（必须在Gradle之前）
+        uses: actions/setup-java@v4  # 升级到v4，更稳定
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'  # 启用Gradle缓存，加速构建
+
+      - name: 缓存 Gradle 依赖
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: 生成/验证 Gradle Wrapper（依赖Java）
+        working-directory: ${{ env.mod_dir }}
+        run: |
+          if [ ! -f "gradlew" ]; then
+            echo "⚠️ 生成 Gradle Wrapper 8.4..."
+            # 直接使用setup-java提供的Gradle环境生成Wrapper
+            gradle wrapper --gradle-version=8.4 --distribution-type=bin
+            chmod +x gradlew  # 确保可执行权限
+          else
+            echo "✅ Gradle Wrapper 已存在"
+          fi
+          # 验证核心文件
+          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
+            echo "❌ 缺失 gradle-wrapper.jar，重新下载..."
+            rm -rf gradle/ gradlew
+            gradle wrapper --gradle-version=8.4 --distribution-type=bin
+          fi
+
+      - name: 补全 settings.gradle（确保仓库配置）
         working-directory: ${{ env.mod_dir }}
         run: |
           if [ ! -f "settings.gradle" ]; then
@@ -37,8 +72,10 @@ jobs:
           pluginManagement {
               repositories {
                   maven { url "https://maven.minecraftforge.net/" }
-                  gradlePluginPortal()
+                  maven { url "https://cursemaven.com" }
                   maven { url "https://maven.parchmentmc.org/" }
+                  mavenCentral()  # 关键：添加中央仓库
+                  gradlePluginPortal()
               }
           }
           rootProject.name = "bonsaitree_forge_mod"
@@ -47,59 +84,15 @@ jobs:
             echo "✅ settings.gradle 已存在"
           fi
 
-      - name: 验证 plugins 块位置
-        working-directory: ${{ env.mod_dir }}
-        run: |
-          echo "🔍 检查 plugins 块是否存在..."
-          if ! grep -q "^plugins *{" build.gradle; then
-            echo "❌ build.gradle 中未找到 plugins 块"
-            exit 1
-          fi
-          echo "✅ plugins 块存在"
-
-      - name: 配置 JDK 17  # 关键：先安装Java，再生成Gradle Wrapper（依赖Java）
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: 'gradle'  # 启用缓存，加速构建
-
-      - name: 生成/验证 Gradle Wrapper  # 沿用你成功过的方法，稳定可靠
-        working-directory: ${{ env.mod_dir }}
-        run: |
-          if [ ! -f "gradlew" ]; then
-            echo "⚠️ 生成 Gradle Wrapper..."
-            # 下载Gradle 8.4二进制包（与你成功版本一致）
-            wget -q https://services.gradle.org/distributions/gradle-8.4-bin.zip
-            # 解压（静默模式，避免输出冗余信息）
-            unzip -q gradle-8.4-bin.zip
-            # 用解压后的Gradle生成Wrapper（确保使用当前安装的Java）
-            ./gradle-8.4/bin/gradle wrapper --gradle-version=8.4
-            # 清理临时文件
-            rm -rf gradle-8.4 gradle-8.4-bin.zip
-            # 确保执行权限（关键：避免"权限不足"错误）
-            chmod +x gradlew
-          else
-            echo "✅ Gradle Wrapper 已存在"
-          fi
-          # 验证生成的文件（关键：确认核心文件存在）
-          echo "🔍 验证 Gradle Wrapper 文件:"
-          ls -la gradle/wrapper
-          if [ ! -f "gradle/wrapper/gradle-wrapper.jar" ]; then
-            echo "❌ 缺失关键文件 gradle-wrapper.jar"
-            exit 1
-          fi
-
       - name: 构建模组
         working-directory: ${{ env.mod_dir }}
         run: |
           echo "🚀 开始构建..."
-          # 增加超时控制和详细输出（失败时便于调试）
-          ./gradlew build --no-daemon --stacktrace
-          echo "→ 构建产物:"
-          ls -la build/libs/  # 输出产物列表，确认生成JAR
+          ./gradlew build --no-daemon --stacktrace  # 增加堆栈跟踪，便于调试
+          echo "📦 构建产物:"
+          ls -la build/libs/
 
-      - name: 提交补全的文件
+      - name: 提交补全的配置文件
         if: success()
         run: |
           git config user.name "GitHub Actions"
@@ -108,13 +101,11 @@ jobs:
           git add ${{ env.mod_dir }}/gradlew
           git add ${{ env.mod_dir }}/gradlew.bat
           git add ${{ env.mod_dir }}/gradle/wrapper/
-          # 仅在有变更时提交（避免空提交）
           if [[ $(git status --porcelain) ]]; then
-            git commit -m "自动补全Gradle配置文件"
+            git commit -m "自动补全Gradle配置"
             git push
-            echo "✅ 已提交补全的文件"
           else
-            echo "⚠️ 无文件变更，无需提交"
+            echo "⚠️ 无配置文件变更"
           fi
 
       - name: 上传构建产物
