@@ -64,17 +64,37 @@ jobs:
           distribution: 'temurin'
           cache: 'gradle'
 
-      - name: 生成/验证 Gradle Wrapper
+      - name: 强制生成完整的 Gradle Wrapper
         working-directory: ${{ env.mod_dir }}
         run: |
-          if [ ! -f "gradlew" ]; then
-            echo "⚠️ 生成 Gradle Wrapper..."
-            # 使用已安装的 Gradle 插件生成 wrapper
-            gradle wrapper --gradle-version=8.4
-            chmod +x gradlew
-          else
-            echo "✅ Gradle Wrapper 已存在"
-          fi
+          # 删除可能不完整的现有文件
+          rm -f gradlew
+          rm -rf gradle/wrapper
+
+          # 创建必要的目录
+          mkdir -p gradle/wrapper
+
+          # 生成 wrapper 配置文件
+          echo "distributionBase=GRADLE_USER_HOME" > gradle/wrapper/gradle-wrapper.properties
+          echo "distributionPath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
+          echo "distributionUrl=https\\://services.gradle.org/distributions/gradle-8.4-bin.zip" >> gradle/wrapper/gradle-wrapper.properties
+          echo "zipStoreBase=GRADLE_USER_HOME" >> gradle/wrapper/gradle-wrapper.properties
+          echo "zipStorePath=wrapper/dists" >> gradle/wrapper/gradle-wrapper.properties
+
+          # 下载 gradle-wrapper.jar
+          wget -q -O gradle/wrapper/gradle-wrapper.jar https://repo.gradle.org/gradle/libs-releases-local/org/gradle/wrapper/gradle-wrapper/8.4/gradle-wrapper-8.4.jar
+
+          # 创建 gradlew 脚本
+          echo "#!/usr/bin/env bash" > gradlew
+          echo "SDKMAN_DIR=\"\$HOME/.sdkman\"" >> gradlew
+          echo "[ -f \"\$SDKMAN_DIR/bin/sdkman-init.sh\" ] && source \"\$SDKMAN_DIR/bin/sdkman-init.sh\"" >> gradlew
+          echo "exec java -Dorg.gradle.appname=gradlew -classpath \"\$0/../gradle/wrapper/gradle-wrapper.jar\" org.gradle.wrapper.GradleWrapperMain \"\$@\"" >> gradlew
+          chmod +x gradlew
+
+          # 验证生成的文件
+          echo "✅ Gradle Wrapper 文件已生成:"
+          ls -la gradle/wrapper
+          cat gradle/wrapper/gradle-wrapper.properties
 
       - name: 构建模组
         working-directory: ${{ env.mod_dir }}
