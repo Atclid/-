@@ -34,10 +34,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gradle-
 
-      - name: Validate Gradle wrapper
+      - name: Generate Gradle wrapper (without existing gradlew)
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          ./gradlew wrapper --gradle-version=8.4 --distribution-type=bin
+          # 使用 setup-java 提供的 gradle 命令生成 wrapper
+          gradle wrapper --gradle-version=8.4 --distribution-type=bin
           chmod +x gradlew
 
       - name: Build with Gradle
