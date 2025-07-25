@@ -1,11 +1,26 @@
-// 插件应用（使用适用于 Minecraft 1.20.1 的 ForgeGradle 7.x）
+// 应用基础插件
 plugins {
     id 'java'
     id 'eclipse'
     id 'maven-publish'
-    id 'net.minecraftforge.gradle' version '7.2.0'
-    id 'org.parchmentmc.librarian.forgegradle' version '1.+'
 }
+
+// 配置插件仓库（关键：在使用插件前声明仓库）
+buildscript {
+    repositories {
+        gradlePluginPortal()
+        maven { url = "https://maven.minecraftforge.net/" }
+        maven { url = "https://maven.parchmentmc.org" }
+    }
+    dependencies {
+        // 指定 ForgeGradle 版本
+        classpath 'net.minecraftforge.gradle:ForgeGradle:7.2.0'
+    }
+}
+
+// 应用 ForgeGradle 插件（使用旧语法确保兼容性）
+apply plugin: 'net.minecraftforge.gradle'
+apply plugin: 'org.parchmentmc.librarian.forgegradle'
 
 // Gradle Wrapper 配置
 wrapper {
@@ -18,7 +33,7 @@ version = '1.0'
 group = 'com.yourmod.bonsaitree'
 archivesBaseName = 'bonsaitree'
 
-// Java 版本配置（Minecraft 1.20.1 需要 Java 17）
+// Java 版本配置
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
@@ -34,7 +49,7 @@ minecraft {
     
     accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
 
-    // 运行配置（提取公共配置，减少冗余）
+    // 运行配置
     runs {
         common {
             workingDirectory project.file('run')
@@ -67,7 +82,7 @@ minecraft {
     }
 }
 
-// 资源目录配置（确保 src/main/resources 被正确打包）
+// 资源目录配置
 sourceSets {
     main {
         resources {
@@ -85,7 +100,7 @@ repositories {
     maven { url = "https://maven.parchmentmc.org" }
 }
 
-// 项目依赖（使用最新的 Forge 1.20.1 版本）
+// 项目依赖
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.3.22'
 }
@@ -127,7 +142,7 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
-// 确保 pack.mcmeta 存在（可选检查）
+// 确保 pack.mcmeta 存在
 task checkPackMcmeta {
     doLast {
         def packMcmeta = file('src/main/resources/pack.mcmeta')
