@@ -2,92 +2,79 @@ name: 自动补全与构建模组
 on:
   push:
     paths:
-      - '**/*.zip'  # 监听任何ZIP文件变化
+      - 'atclid/bonsaitree_mod/**'
   workflow_dispatch:
 
 jobs:
-  setup-and-build:
+  build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write  # 允许提交补全的文件
+    
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # 1. 自动检测模组目录（查找包含build.gradle的目录）
-      - name: 查找模组目录
-        id: find_mod_dir
+      - name: 检查并补全 settings.gradle
+        working-directory: atclid/bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          MOD_DIR=$(find . -name "build.gradle" -exec dirname {} \; | head -n 1)
-          if [ -z "$MOD_DIR" ]; then
-            echo "未找到Gradle项目！请确保仓库中存在build.gradle文件。"
-            exit 1
+          if [ ! -f "settings.gradle" ]; then
+            echo "rootProject.name = 'bonsaitree_forge_mod'" > settings.gradle
+            echo "✅ 创建了 settings.gradle"
+          else
+            echo "✅ settings.gradle 已存在"
           fi
-          echo "模组目录: $MOD_DIR"
-          echo "mod_dir=$MOD_DIR" >> $GITHUB_ENV
 
-      # 2. 补全Gradle配置
-      - name: 补全 settings.gradle
+      - name: 检查并生成 Gradle Wrapper
+        working-directory: atclid/bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          mkdir -p ${{ env.mod_dir }}
-          echo "rootProject.name = 'bonsaitree_forge_mod'" > ${{ env.mod_dir }}/settings.gradle
-          echo "✅ 已创建 settings.gradle"
+          if [ ! -f "gradlew" ]; then
+            echo "🔧 未找到 Gradle Wrapper，正在生成..."
+            wget -q https://services.gradle.org/distributions/gradle-8.4-bin.zip
+            unzip -q gradle-8.4-bin.zip
+            ./gradle-8.4/bin/gradle wrapper --gradle-version=8.4 --distribution-type=bin
+            rm -rf gradle-8.4 gradle-8.4-bin.zip
+            echo "✅ 已生成 Gradle Wrapper"
+          else
+            echo "✅ Gradle Wrapper 已存在"
+          fi
 
-      # 3. 补全mods.toml
-      - name: 补全 mods.toml
-        run: |
-          mkdir -p ${{ env.mod_dir }}/src/main/resources/META-INF
-          cat << EOF > ${{ env.mod_dir }}/src/main/resources/META-INF/mods.toml
-          modLoader="javafml"
-          loaderVersion="[47,)"
-          license="All Rights Reserved"
-
-          [[mods]]
-          modId="bonsaitree"
-          version="1.0"
-          displayName="Bonsai Tree Mod"
-          authors="YourName"
-          description='''添加可在耕地上种植的盆景树苗种子'''
-          EOF
-          echo "✅ 已创建 mods.toml"
-
-      # 4. 配置Java环境
-      - name: 配置 JDK 17
+      - name: 配置 Java 环境
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: 'gradle'  # 缓存依赖，加速构建
 
-      # 5. 编译模组
       - name: 构建模组
-        working-directory: ${{ env.mod_dir }}
+        working-directory: atclid/bonsaitree_mod/bonsaitree_forge_mod
         run: |
           chmod +x gradlew
           ./gradlew build --no-daemon
-          echo "✅ 模组构建完成"
 
-      # 6. 提交变更
-      - name: 提交代码变更
+      - name: 提交补全的文件
+        if: success()
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
-          git add ${{ env.mod_dir }}/settings.gradle
-          git add ${{ env.mod_dir }}/src/main/resources/META-INF/mods.toml
+          git add atclid/bonsaitree_mod/bonsaitree_forge_mod/settings.gradle
+          git add atclid/bonsaitree_mod/bonsaitree_forge_mod/gradlew
+          git add atclid/bonsaitree_mod/bonsaitree_forge_mod/gradlew.bat
+          git add atclid/bonsaitree_mod/bonsaitree_forge_mod/gradle/wrapper/
           
           if [[ $(git status --porcelain) ]]; then
-            git commit -m "自动补全模组基础配置文件"
+            git commit -m "自动补全 Gradle 配置文件"
             git push
-            echo "✅ 配置文件已提交"
+            echo "✅ 已提交补全的配置文件"
           else
-            echo "⚠️ 无文件变更，跳过提交"
+            echo "⚠️ 没有文件变更"
           fi
 
-      # 7. 上传模组包
-      - name: 上传模组包
+      - name: 上传构建产物
         uses: actions/upload-artifact@v4
         with:
-          name: bonsaitree-mod-jar
-          path: ${{ env.mod_dir }}/build/libs/*.jar
+          name: bonsaitree-mod
+          path: atclid/bonsaitree_mod/bonsaitree_forge_mod/build/libs/*.jar
           if-no-files-found: error
