@@ -1,11 +1,10 @@
 buildscript {
     repositories {
-        // 唯一有效的 Forge 官方仓库
         maven { url = "https://maven.minecraftforge.net/" }
         mavenCentral()
     }
     dependencies {
-        // 6.0.14 是 6.x 系列的稳定版，官方仓库中存在
+        // 确认 6.0.14 是兼容的稳定版
         classpath 'net.minecraftforge.gradle:ForgeGradle:6.0.14'
     }
 }
@@ -15,8 +14,10 @@ plugins {
     id 'eclipse'
 }
 
+// 仅应用必要插件，避免冲突
 apply plugin: 'net.minecraftforge.gradle'
-apply plugin: 'org.parchmentmc.librarian.forgegradle'
+// 暂时移除 ParchmentMC 插件（可能引发冲突）
+// apply plugin: 'org.parchmentmc.librarian.forgegradle'
 
 version = '1.0.0'
 group = 'com.yourmod.bonsaitree'
@@ -29,7 +30,7 @@ java {
 }
 
 minecraft {
-    mappings channel: 'parchment', version: '2023.09.03-1.20.1'
+    mappings channel: 'srg', version: '1.20.1'  // 使用官方SRG映射，避免Parchment冲突
     accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
 
     runs {
