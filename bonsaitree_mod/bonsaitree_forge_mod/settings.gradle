@@ -1,11 +1,10 @@
-// 配置插件仓库
 pluginManagement {
     repositories {
+        // 优先添加 Forge 官方仓库
+        maven { url = "https://maven.minecraftforge.net/" }
         gradlePluginPortal()
-        maven { url = "https://maven.minecraftforge.net" }
         mavenCentral()
     }
 }
 
-// 项目名称
 rootProject.name = "bonsaitree_forge_mod"
