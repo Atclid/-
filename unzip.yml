@@ -1,0 +1,19 @@
+on: [push]
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Unzip mod files
+      run: |
+        chmod +x unzip-script.sh
+        ./unzip-script.sh
+      env:
+        ACTIONS_ALLOW_UNSECURE_COMMANDS: true
+    - name: Commit extracted
+      run: |
+        git config user.email "unzip-bot@github.com"
+        git config user.name "Unzip Bot"
+        git add .
+        git commit -m "自动解压文件" || true
+        git push
