@@ -14,11 +14,11 @@ public class BonsaiTreeBlock extends Block {
         super(properties);
     }
 
+    // 右键点击破坏方块
     @Override
     public InteractionResult use(BlockState state, Level level, BlockPos pos,
                                  Player player, InteractionHand hand, BlockHitResult hit) {
         if (!level.isClientSide) {
-            // 示例：右键点击破坏盆景树
             level.setBlock(pos, net.minecraft.world.level.block.Blocks.AIR.defaultBlockState(), 3);
             return InteractionResult.SUCCESS;
         }
