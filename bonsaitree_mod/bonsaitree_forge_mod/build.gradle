@@ -1,13 +1,13 @@
-// 配置插件仓库（关键：添加 mavenCentral() 和 Forge 仓库）
+// 配置插件仓库和依赖
 buildscript {
     repositories {
-        mavenCentral()  // 添加 Maven Central 作为主要仓库
+        mavenCentral()
         gradlePluginPortal()
-        maven { url = "https://maven.minecraftforge.net/" }  // Forge 官方仓库
+        maven { url = "https://maven.minecraftforge.net/" }
     }
     dependencies {
-        // 使用适用于 Minecraft 1.20.1 的稳定版本 7.0.0
-        classpath 'net.minecraftforge.gradle:ForgeGradle:7.0.0'
+        // 使用最新稳定版本的ForgeGradle（适用于Minecraft 1.20.1）
+        classpath 'net.minecraftforge.gradle:ForgeGradle:7.1.0'
     }
 }
 
@@ -18,32 +18,29 @@ plugins {
     id 'maven-publish'
 }
 
-// 应用 ForgeGradle 插件
+// 应用ForgeGradle和ParchmentMC插件
 apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'org.parchmentmc.librarian.forgegradle'
 
-// Gradle Wrapper 配置
+// Gradle Wrapper配置
 wrapper {
     gradleVersion = "8.4"
     distributionType = Wrapper.DistributionType.BIN
 }
 
 // 项目基本信息
-version = '1.0'
+version = '1.0.0'
 group = 'com.yourmod.bonsaitree'
 archivesBaseName = 'bonsaitree'
 
-// Java 版本配置
+// Java版本配置（Minecraft 1.20.1需要Java 17）
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
     }
 }
 
-// 打印系统信息（调试用）
-println "Java: ${System.getProperty('java.version')}, JVM: ${System.getProperty('java.vm.version')} (${System.getProperty('java.vendor')}), Arch: ${System.getProperty('os.arch')}"
-
-// Minecraft 模组配置
+// Minecraft模组配置
 minecraft {
     mappings channel: 'parchment', version: '2023.09.03-1.20.1'
     
@@ -51,32 +48,23 @@ minecraft {
 
     // 运行配置
     runs {
-        common {
+        client {
             workingDirectory project.file('run')
             property 'forge.logging.markers', 'REGISTRIES'
             property 'forge.logging.console.level', 'debug'
-            property 'forge.enabledGameTestNamespaces', 'bonsaitree'
             mods {
                 bonsaitree {
                     source sourceSets.main
                 }
             }
         }
-
-        client {
-            extendsFrom common
-        }
-
+        
         server {
-            extendsFrom common
+            extendsFrom client
         }
-
-        gameTestServer {
-            extendsFrom common
-        }
-
+        
         data {
-            extendsFrom common
+            extendsFrom client
             args '--mod', 'bonsaitree', '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
         }
     }
@@ -92,7 +80,7 @@ sourceSets {
     }
 }
 
-// 依赖仓库
+// 依赖仓库配置
 repositories {
     mavenCentral()
     maven { url = "https://maven.minecraftforge.net/" }
@@ -102,14 +90,17 @@ repositories {
 
 // 项目依赖
 dependencies {
-    minecraft 'net.minecraftforge:forge:1.20.1-47.3.22'
+    minecraft 'net.minecraftforge:forge:1.20.1-47.3.22' // 使用最新Forge版本
+    
+    // 添加其他必要依赖（如果有）
+    // implementation 'com.example:library:1.0.0'
 }
 
-// JAR 打包配置
+// JAR打包配置
 jar {
     manifest {
         attributes(
-            "Specification-Title": "bonsaitree",
+            "Specification-Title": "Bonsai Tree Mod",
             "Specification-Vendor": "YourName",
             "Specification-Version": "1",
             "Implementation-Title": project.name,
@@ -142,16 +133,23 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
-// 确保 pack.mcmeta 存在
-task checkPackMcmeta {
+// 确保必要文件存在
+task checkRequiredFiles {
     doLast {
-        def packMcmeta = file('src/main/resources/pack.mcmeta')
-        if (!packMcmeta.exists()) {
-            throw new GradleException("Missing pack.mcmeta file!")
+        def requiredFiles = [
+            'src/main/resources/pack.mcmeta',
+            'src/main/resources/META-INF/accesstransformer.cfg'
+        ]
+        
+        requiredFiles.each { file ->
+            if (!file(file).exists()) {
+                throw new GradleException("Missing required file: $file")
+            }
         }
-        println "✅ pack.mcmeta found"
+        
+        println "✅ 所有必要文件已存在"
     }
 }
 
-// 构建前检查 pack.mcmeta
-tasks.processResources.dependsOn(checkPackMcmeta)
+// 构建前检查
+tasks.build.dependsOn(checkRequiredFiles)
