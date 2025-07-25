@@ -1,21 +1,23 @@
 name: 构建 Minecraft 模组
+# 同时支持自动触发（代码推送）和手动触发（Run workflow 按钮）
 on:
   push:
     paths:
-      - 'bonsaitree_mod/bonsaitree_forge_mod/**'
-  workflow_dispatch:
+      - 'bonsaitree_mod/bonsaitree_forge_mod/**'  # 代码推送到模组目录时自动触发
+  workflow_dispatch:  # 手动触发触发器（必须添加，否则没有按钮）
+    # 可选：添加手动触发时的参数（这里留空，保持简单）
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: write  # 允许提交文件到仓库
 
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # 拉取完整历史，支持提交
 
       - name: 验证模组目录
         run: |
@@ -29,38 +31,36 @@ jobs:
           ls -la $MOD_DIR
 
       - name: 检查并补全 settings.gradle
-        working_directory: ${{ env.mod_dir }}
+        working-directory: ${{ env.mod_dir }}
         run: |
           if [ ! -f "settings.gradle" ]; then
             echo "⚠️ 生成 settings.gradle"
             cat << EOF > settings.gradle
-pluginManagement {
-    repositories {
-        maven { url "https://maven.minecraftforge.net/" }
-        gradlePluginPortal()
-        maven { url "https://maven.parchmentmc.org/" }
-    }
-}
-rootProject.name = "bonsaitree_forge_mod"
-EOF
+          pluginManagement {
+              repositories {
+                  maven { url "https://maven.minecraftforge.net/" }
+                  gradlePluginPortal()
+                  maven { url "https://maven.parchmentmc.org/" }
+              }
+          }
+          rootProject.name = "bonsaitree_forge_mod"
+          EOF
           else
             echo "✅ settings.gradle 已存在"
           fi
 
       - name: 验证 plugins 块位置
-        working_directory: ${{ env.mod_dir }}
+        working-directory: ${{ env.mod_dir }}
         run: |
-          echo "🔍 检查 plugins 块是否在正确位置..."
-          PLUGINS_LINE=$(grep -n "^plugins *{" build.gradle | head -n1 | cut -d: -f1)
-          if [ -z "$PLUGINS_LINE" ]; then
-            echo "❌ 未找到 plugins 块"
+          echo "🔍 检查 plugins 块是否存在..."
+          if ! grep -q "^plugins *{" build.gradle; then
+            echo "❌ build.gradle 中未找到 plugins 块"
             exit 1
-          else
-            echo "✅ plugins 块位置正确（第 $PLUGINS_LINE 行）"
           fi
+          echo "✅ plugins 块存在"
 
       - name: 生成/验证 Gradle Wrapper
-        working_directory: ${{ env.mod_dir }}
+        working-directory: ${{ env.mod_dir }}
         run: |
           if [ ! -f "gradlew" ]; then
             echo "⚠️ 生成 Gradle Wrapper..."
@@ -81,7 +81,7 @@ EOF
           cache: 'gradle'
 
       - name: 构建模组
-        working_directory: ${{ env.mod_dir }}
+        working-directory: ${{ env.mod_dir }}
         run: |
           echo "🚀 开始构建..."
           ./gradlew build --no-daemon
