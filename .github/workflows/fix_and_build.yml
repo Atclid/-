@@ -1,108 +1,57 @@
-name: Fix Missing Files and Build Mod
+name: Unzip Mod and Commit
 
-on: [push]
+on:
+  push:
+    paths:
+      - 'bonsaitree_forge_mod.zip'
 
 jobs:
-  fix-missing-files:
+  unzip-and-commit:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write  # 授予写入权限
+    permissions: 
+      contents: write  # 添加写权限
+    
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # 获取完整历史，允许提交
-
-      # 1. 生成 Gradle Wrapper
-      - name: Generate Gradle Wrapper
-        run: |
-          echo "开始生成Gradle Wrapper..."
-          wget https://services.gradle.org/distributions/gradle-8.4-bin.zip || { echo "下载Gradle失败"; exit 1; }
-          unzip -q gradle-8.4-bin.zip || { echo "解压Gradle失败"; exit 1; }
-          chmod +x ./gradle-8.4/bin/gradle
-          ./gradle-8.4/bin/gradle wrapper --gradle-version=8.4 --distribution-type=bin || { echo "生成Wrapper失败"; exit 1; }
-          
-          # 验证生成的文件
-          echo "生成的Gradle Wrapper文件:"
-          ls -la gradlew gradlew.bat gradle/wrapper/
-
-      # 2. 创建缺失的 mods.toml
-      - name: Create mods.toml
-        run: |
-          echo "创建mods.toml文件..."
-          mkdir -p src/main/resources/META-INF
-          cat << EOF > src/main/resources/META-INF/mods.toml
-          modLoader="javafml"
-          loaderVersion="[47,)"
-          license="All Rights Reserved"
-          
-          [[mods]]
-          modId="bonsaitree"
-          version="1.0"
-          displayName="Bonsai Tree Mod"
-          authors="YourName"
-          description='''添加可在耕地上种植的盆景树苗种子'''
-          EOF
-          
-          # 验证文件创建
-          echo "创建的mods.toml内容:"
-          cat src/main/resources/META-INF/mods.toml
-
-      # 3. 提交修复的文件
-      - name: Commit fixes
-        if: success()
-        run: |
-          echo "检查是否需要提交修复..."
-          git config user.email "fix-bot@github.com"
-          git config user.name "Fix Bot"
-          
-          # 检查是否有文件变更
-          if [[ $(git status --porcelain) ]]; then
-            git add .
-            git commit -m "自动修复缺失文件"
-            
-            # 使用更健壮的推送命令
-            echo "尝试推送修改..."
-            git push https://github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }} || {
-              echo "推送失败，尝试拉取最新代码并重新提交"
-              git pull --rebase https://github.com/${{ github.repository }}.git ${{ github.ref_name }}
-              git push https://github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}
-            }
-            echo "✅ 修复文件已提交并推送"
-          else
-            echo "没有文件变更，跳过提交"
-          fi
-
-  build-mod:
-    needs: fix-missing-files
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # 获取完整历史
         
-      - name: Set up JDK 17
-        uses: actions/setup-java@v3
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          
-      - name: Build mod
-        run: |
-          echo "开始构建项目..."
-          chmod +x gradlew
-          ./gradlew build --no-daemon || {
-            echo "构建失败，输出详细错误信息:"
-            ./gradlew build --stacktrace --info --no-daemon
-            exit 1
-          }
-          
-          # 验证构建结果
-          echo "构建结果:"
-          ls -la build/libs/
-          
-      - name: Upload artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: bonsai-mod
-          path: build/libs/*.jar
-          if-no-files-found: error  # 确保有文件可上传
+    - name: Check ZIP file exists
+      run: |
+        if [ ! -f bonsaitree_forge_mod.zip ]; then
+          echo "::error::ZIP file not found in root directory!"
+          exit 1
+        fi
+        
+    - name: Create directory
+      run: mkdir -p bonsaitree_mod
+      
+    - name: Unzip mod package
+      run: |
+        unzip -o bonsaitree_forge_mod.zip -d bonsaitree_mod/
+        echo "Unzip completed successfully!"
+        
+    - name: List files
+      run: ls -R bonsaitree_mod
+      
+    - name: Commit changes
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        
+        git add bonsaitree_mod
+        
+        # 仅当有变化时提交
+        if git diff-index --quiet HEAD --; then
+          echo "没有变化，无需提交"
+        else
+          git commit -m "自动解压模组文件 [skip ci]"
+        fi
+        
+    - name: Push changes
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: main
+        force: true  # 允许强制推送
