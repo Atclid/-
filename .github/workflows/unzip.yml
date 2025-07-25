@@ -1,57 +1,37 @@
-name: Download, Unzip and Push to Repository
+name: Unzip Mod and Commit
+
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    paths:
+      - 'bonsaitree_forge_mod.zip'  # 只在ZIP文件变化时触发
 
 jobs:
-  unzip_and_push:
+  unzip-and-commit:
     runs-on: ubuntu-latest
     steps:
-      - name: 检出当前仓库代码
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # 获取完整的git历史，允许推送到分支
-
-      - name: 安装unzip工具
-        run: sudo apt-get update && sudo apt-get install -y unzip
-
-      - name: 下载bonsaitree_forge_mod.zip
-        run: |
-          wget --no-check-certificate "https://raw.githubusercontent.com/Atclid/atclid/main/bonsaitree_forge_mod.zip" -O "bonsai_mod.zip"
-          if [ $? -ne 0 ]; then
-            echo "下载失败，可能是文件不存在或路径错误"
-            exit 1
-          fi
-
-      - name: 解压zip文件
-        run: |
-          mkdir -p extracted_mod  # 创建解压目录
-          unzip bonsai_mod.zip -d extracted_mod/
-          echo "解压完成！"
-
-      - name: 添加并提交解压后的文件
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          
-          # 将解压的文件添加到仓库（假设推送到'extracted'目录）
-          mkdir -p extracted/
-          cp -r extracted_mod/* extracted/
-          
-          # 检查是否有文件变更
-          if [[ $(git status --porcelain) ]]; then
-            git add extracted/
-            git commit -m "自动解压并添加mod文件"
-            echo "有文件变更，已提交！"
-          else
-            echo "没有文件变更，跳过提交"
-            exit 0  # 退出工作流，避免不必要的推送
-          fi
-
-      - name: 推送到仓库
-        uses: ad-m/github-push-action@v0.6.0  # 使用第三方action简化推送
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}  # 使用内置token
-          branch: main  # 推送到main分支，可修改为其他分支
-          force: false  # 不强制推送，避免覆盖重要内容
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Unzip mod package
+      run: |
+        # 创建解压目录
+        mkdir -p bonsaitree_mod
+        
+        # 解压ZIP文件
+        unzip bonsaitree_forge_mod.zip -d bonsaitree_mod/
+        
+        # 列出解压内容验证
+        ls -R bonsaitree_mod
+        
+    - name: Commit unzipped files
+      run: |
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git add .
+        git commit -m "自动解压模组文件 [skip ci]" || echo "没有变化，无需提交"
+        
+    - name: Push changes
+      uses: ad-m/github-push-action@master
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        branch: main
