@@ -1,72 +1,46 @@
-// 确保基础插件已应用
+// 关键：buildscript 必须放在所有 plugins 之前
+buildscript {
+    repositories {
+        maven { url = "https://maven.minecraftforge.net/" }
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'net.minecraftforge.gradle:ForgeGradle:6.0.14'
+    }
+}
+
+// 所有 plugins 代码块必须在 buildscript 之后
 plugins {
     id 'java'
     id 'eclipse'
 }
 
-// ForgeGradle配置
-buildscript {
-    repositories {
-        // 使用官方Minecraft Forge仓库
-        maven { url = "https://maven.minecraftforge.net/" }
-        // 确保基本依赖可用
-        mavenCentral()
-    }
-    dependencies {
-        // 使用兼容Minecraft 1.20.1的ForgeGradle版本
-        classpath 'net.minecraftforge.gradle:ForgeGradle:6.0.14'
-    }
-}
-
-// 应用Forge插件
+// 应用 Forge 插件
 apply plugin: 'net.minecraftforge.gradle'
 
-// 项目基础信息
+// 项目信息
 version = '1.0.0'
 group = 'com.yourmod.bonsaitree'
 description = 'Bonsai Tree Mod for Minecraft 1.20.1'
 
-// Java工具链配置（强制使用Java 17）
+// Java 配置
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
     }
-    
-    // 兼容不同Java版本的字节码
     sourceCompatibility = JavaVersion.VERSION_17
     targetCompatibility = JavaVersion.VERSION_17
 }
 
-// Minecraft特定配置
+// Minecraft 核心配置
 minecraft {
-    // 使用官方SRG映射
     mappings channel: 'srg', version: '1.20.1'
-    
-    // 访问转换器配置（如果有）
     accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
-    
-    // 运行配置（用于开发测试）
+
     runs {
         client {
             workingDirectory project.file('run')
-            // 配置VM参数
-            vmArgs = [
-                '-Xmx4G',
-                '-XX:+UseG1GC',
-                '-XX:G1HeapRegionSize=4M',
-                '-XX:+UnlockExperimentalVMOptions',
-                '-XX:+ParallelRefProcEnabled',
-                '-XX:+AlwaysPreTouch'
-            ]
-            mods {
-                bonsaitree {
-                    source sourceSets.main
-                }
-            }
-        }
-        
-        server {
-            workingDirectory project.file('run')
+            vmArgs = ['-Xmx4G']
             mods {
                 bonsaitree {
                     source sourceSets.main
@@ -76,64 +50,40 @@ minecraft {
     }
 }
 
-// 仓库配置
+// 仓库与依赖
 repositories {
     maven { url = "https://maven.minecraftforge.net/" }
-    mavenCentral()
 }
 
-// 依赖配置
 dependencies {
-    // Minecraft Forge核心依赖
     minecraft 'net.minecraftforge:forge:1.20.1-47.1.0'
-    
-    // 示例：添加其他依赖（如果需要）
-    // implementation 'com.google.guava:guava:31.1-jre'
 }
 
-// 构建任务配置
+// 打包配置
 jar {
-    // 设置归档名称
     archiveBaseName.set('bonsaitree')
     archiveVersion.set(project.version)
-    
-    // 添加构建信息
     manifest {
         attributes(
-            'Specification-Title': project.name,
-            'Specification-Version': project.version,
-            'Implementation-Title': "${project.group}.${project.name}",
-            'Implementation-Version': project.version,
             'Built-By': System.getProperty('user.name'),
-            'Build-Jdk': System.getProperty('java.version'),
-            'Build-Time': new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+            'Build-Jdk': System.getProperty('java.version')
         )
     }
-    
-    // 混淆任务依赖
     finalizedBy 'reobfJar'
 }
 
-// 自定义任务示例：清理缓存
-task cleanCache(type: Delete) {
+// 清理任务
+task cleanAll(type: Delete) {
+    delete rootProject.buildDir
     delete rootProject.file('.gradle')
-    delete rootProject.file('build')
+    description = '彻底清理构建缓存和输出'
 }
 
-// 构建完成后显示信息
-tasks.wrapper {
-    gradleVersion = '8.1'  // 确保Wrapper使用正确的Gradle版本
-    distributionType = Wrapper.DistributionType.BIN
-}
-
-// 错误处理增强
-gradle.buildFinished { buildResult ->
-    if (buildResult.failure) {
-        println "\n构建失败！请检查错误信息并尝试以下操作："
-        println "1. 确认网络连接正常，能够访问Minecraft Forge仓库"
-        println "2. 运行 './gradlew cleanBuildCache' 清理构建缓存"
-        println "3. 删除 '.gradle' 目录并重新构建"
+// 构建结果提示
+gradle.buildFinished { result ->
+    if (result.success) {
+        println "\n✅ 构建成功！模组位置：${project.buildDir}/libs/"
     } else {
-        println "\n构建成功！模组位于：${project.buildDir}/libs/${jar.archiveFileName.get()}"
+        println "\n❌ 构建失败，请运行 ./gradlew cleanAll 后重试"
     }
 }
