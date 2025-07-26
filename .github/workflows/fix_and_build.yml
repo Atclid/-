@@ -14,18 +14,18 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: 手动下载 Gradle 7.2 并生成 Wrapper
+      - name: 生成 Gradle 7.6 Wrapper
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          # 手动下载指定版本，避免系统版本干扰
-          wget https://services.gradle.org/distributions/gradle-7.2-bin.zip
-          unzip gradle-7.2-bin.zip
-          ./gradle-7.2/bin/gradle wrapper --gradle-version=7.2 --distribution-type=bin
+          # 使用 Gradle 7.6（兼容 ForgeGradle 6.x）
+          gradle wrapper --gradle-version=7.6 --distribution-type=bin
           chmod +x gradlew
           # 验证版本
           ./gradlew --version
 
-      - name: 构建（禁用 daemon 并强制使用指定版本）
+      - name: 构建
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          ./gradlew build --no-daemon --stacktrace --warning-mode all
+          # 清理缓存并构建
+          rm -rf ~/.gradle/caches/
+          ./gradlew build --stacktrace --no-daemon
