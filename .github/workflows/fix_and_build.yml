@@ -8,28 +8,22 @@ jobs:
       - name: 拉取代码
         uses: actions/checkout@v4
 
-      - name: 配置JDK 17
+      - name: 配置 JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: 手动下载Gradle 7.2（彻底隔离环境）
-        run: |
-          # 手动安装指定版本，不依赖系统Gradle
-          wget https://services.gradle.org/distributions/gradle-7.2-bin.zip
-          unzip gradle-7.2-bin.zip
-          export PATH=$PWD/gradle-7.2/bin:$PATH
-          gradle --version  # 验证版本
-
-      - name: 生成Wrapper（锁定版本）
+      - name: 生成 Gradle 8.1 Wrapper（满足 FG6 最低要求）
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          gradle wrapper --gradle-version=7.2 --distribution-type=bin
+          # 直接使用系统命令生成 8.1 版本的 wrapper
+          gradle wrapper --gradle-version=8.1 --distribution-type=bin
           chmod +x gradlew
+          # 验证版本
+          ./gradlew --version
 
-      - name: 清理缓存+构建（带详细日志）
+      - name: 构建
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          rm -rf ~/.gradle/caches/
-          ./gradlew build --stacktrace --info  # 输出详细日志
+          ./gradlew build --stacktrace --no-daemon
