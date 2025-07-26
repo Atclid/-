@@ -14,16 +14,24 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: 生成 Gradle 8.1 Wrapper（满足 FG6 最低要求）
+      - name: 手动下载并安装 Gradle 8.1（关键！）
+        run: |
+          mkdir -p ~/gradle
+          cd ~/gradle
+          wget -q https://services.gradle.org/distributions/gradle-8.1-bin.zip
+          unzip -q gradle-8.1-bin.zip
+          echo "$HOME/gradle/gradle-8.1/bin" >> $GITHUB_PATH
+          # 验证版本
+          gradle --version
+
+      - name: 生成 Gradle Wrapper
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          # 直接使用系统命令生成 8.1 版本的 wrapper
           gradle wrapper --gradle-version=8.1 --distribution-type=bin
           chmod +x gradlew
-          # 验证版本
-          ./gradlew --version
 
-      - name: 构建
+      - name: 强制清理缓存并构建
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          ./gradlew build --stacktrace --no-daemon
+          rm -rf ~/.gradle/caches/
+          ./gradlew build --no-daemon --stacktrace
