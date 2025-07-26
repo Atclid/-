@@ -4,8 +4,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        // 使用 ForgeGradle 6.0.14（支持 MCP spec 4）
-        classpath 'net.minecraftforge.gradle:ForgeGradle:6.0.14'
+        classpath 'net.minecraftforge.gradle:ForgeGradle:6.0.14' // 支持MCP spec 4
     }
 }
 
@@ -28,17 +27,6 @@ java {
 minecraft {
     mappings channel: 'srg', version: '1.20.1'
     accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
-
-    runs {
-        client {
-            workingDirectory project.file('run')
-            mods {
-                bonsaitree {
-                    source sourceSets.main
-                }
-            }
-        }
-    }
 }
 
 repositories {
