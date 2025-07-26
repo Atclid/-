@@ -1,37 +1,83 @@
 name: 构建模组
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30  # 设置超时时间，避免长时间等待
+    
     steps:
       - name: 拉取代码
         uses: actions/checkout@v4
-
-      - name: 配置 JDK 17
+        with:
+          fetch-depth: 0  # 获取完整的Git历史，用于版本计算
+          
+      - name: 设置环境变量
+        run: |
+          echo "JAVA_OPTS=-Xmx4G -Xms2G" >> $GITHUB_ENV
+          echo "GRADLE_OPTS=-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=2" >> $GITHUB_ENV
+          
+      - name: 配置JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-
-      - name: 手动下载并安装 Gradle 8.1（关键！）
+          cache: 'gradle'  # 缓存Gradle依赖，加速后续构建
+          
+      - name: 清理旧缓存（确保干净的构建环境）
+        run: |
+          rm -rf ~/.gradle/caches/
+          rm -rf ~/.gradle/wrapper/
+          
+      - name: 手动下载并安装Gradle 8.1
         run: |
           mkdir -p ~/gradle
           cd ~/gradle
           wget -q https://services.gradle.org/distributions/gradle-8.1-bin.zip
           unzip -q gradle-8.1-bin.zip
           echo "$HOME/gradle/gradle-8.1/bin" >> $GITHUB_PATH
-          # 验证版本
+          # 验证Gradle版本
           gradle --version
-
-      - name: 生成 Gradle Wrapper
+          
+      - name: 生成Gradle Wrapper
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
           gradle wrapper --gradle-version=8.1 --distribution-type=bin
           chmod +x gradlew
-
-      - name: 强制清理缓存并构建
+          
+      - name: 检查Wrapper版本
         working-directory: bonsaitree_mod/bonsaitree_forge_mod
         run: |
-          rm -rf ~/.gradle/caches/
-          ./gradlew build --no-daemon --stacktrace
+          ./gradlew --version
+          
+      - name: 构建模组
+        working-directory: bonsaitree_mod/bonsaitree_forge_mod
+        run: |
+          ./gradlew build --stacktrace --info
+          
+      - name: 收集构建产物
+        if: success()
+        working-directory: bonsaitree_mod/bonsaitree_forge_mod
+        run: |
+          mkdir artifacts
+          cp build/libs/*.jar artifacts/
+          
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: bonsaitree-mod-${{ github.sha }}
+          path: bonsaitree_mod/bonsaitree_forge_mod/artifacts/
+          retention-days: 30  # 保留产物30天
+          
+      - name: 构建失败通知
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            core.setFailed('构建失败！请查看详细日志进行排查。')
