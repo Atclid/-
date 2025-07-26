@@ -1,42 +1,40 @@
 buildscript {
     repositories {
+        // 只保留Forge官方仓库，避免冲突
         maven { url = "https://maven.minecraftforge.net/" }
-        mavenCentral()
     }
     dependencies {
-        classpath 'net.minecraftforge.gradle:ForgeGradle:6.0.14' // 支持MCP spec 4
+        // 确定兼容的版本组合：ForgeGradle 5.1.3 + Gradle 7.2
+        classpath 'net.minecraftforge.gradle:ForgeGradle:5.1.3'
     }
 }
 
-plugins {
-    id 'java'
-    id 'eclipse'
-}
-
+apply plugin: 'java'
 apply plugin: 'net.minecraftforge.gradle'
 
+// 基础信息
 version = '1.0.0'
-group = 'com.yourmod.bonsaitree'
+group = 'com.yourmod'
 
+// 强制Java 17
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
     }
 }
 
+// Minecraft核心配置（极简）
 minecraft {
     mappings channel: 'srg', version: '1.20.1'
     accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
 }
 
-repositories {
-    maven { url = "https://maven.minecraftforge.net/" }
-}
-
+// 依赖仅保留Forge核心
 dependencies {
     minecraft 'net.minecraftforge:forge:1.20.1-47.1.0'
 }
 
+// 打包混淆
 jar {
     finalizedBy 'reobfJar'
 }
